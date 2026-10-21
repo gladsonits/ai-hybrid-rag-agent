@@ -37,16 +37,32 @@ class Source(BaseModel):
     score: float | None = None
 
 
+class Citation(BaseModel):
+    """A passage the answer actually referred to.
+
+    ``marker`` is the number the model wrote, e.g. 1 for "[1]", and points
+    at the passage of that number in the sources list.
+    """
+
+    marker: int
+    chunk_id: int
+    text: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    score: float | None = None
+
+
 class ChatEvent(BaseModel):
     """One server-sent event.
 
     ``type`` says what the event carries: ``token`` for a piece of the
-    answer, ``sources`` for the passages cited, ``done`` for the end of the
-    stream, and ``error`` for a failure.
+    answer, ``sources`` for the passages the answer was built from,
+    ``citations`` for the passages it actually cited, ``done`` for the end
+    of the stream, and ``error`` for a failure.
     """
 
     type: str
     token: str | None = None
     sources: list[Source] | None = None
+    citations: list[Citation] | None = None
     conversation_id: str | None = None
     error: str | None = None

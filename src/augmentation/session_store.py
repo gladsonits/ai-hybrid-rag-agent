@@ -6,6 +6,9 @@ database as the chunk index, in two tables:
 
 - ``conversations`` - one row per session, keyed by a client-supplied id.
 - ``messages`` - one row per turn, pointing back at its conversation.
+- ``conversation_summaries`` - the summary of the part of a conversation
+  that grew too long to replay, so it does not have to be regenerated on
+  every turn.
 
 Storing history in PostgreSQL rather than in the process means the history
 survives a restart of the API and works unchanged when more than one worker
@@ -21,6 +24,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from augmentation.history import StoredMessage
 from retrieval.database import Database
 
 #: Schema for the conversation tables.  Both are created together because
@@ -44,8 +48,20 @@ SESSION_SCHEMA_DDL = (
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS conversation_summaries (
+        id              BIGSERIAL PRIMARY KEY,
+        conversation_id TEXT NOT NULL
+                        REFERENCES conversations (id) ON DELETE CASCADE,
+        summary         TEXT NOT NULL,
+        covers_up_to_id BIGINT NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS messages_conversation_idx "
     "ON messages (conversation_id, id);",
+    "CREATE INDEX IF NOT EXISTS conversation_summaries_conversation_idx "
+    "ON conversation_summaries (conversation_id, id);",
 )
 
 #: The roles a stored message can have.
@@ -53,16 +69,13 @@ ROLES = ("user", "assistant")
 
 
 @dataclass(frozen=True, slots=True)
-class StoredMessage:
-    """One message in a conversation."""
+class StoredSummary:
+    """A stored summary of the older part of a conversation."""
 
-    role: str
-    content: str
-    #: The chunks cited by an assistant message.  Empty for a user message.
-    sources: list[dict[str, Any]]
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"role": self.role, "content": self.content, "sources": self.sources}
+    summary: str
+    #: The id of the last message the summary covers.  Messages at or
+    #: before it are already folded into the summary.
+    covers_up_to_id: int
 
 
 class SessionStore:
@@ -81,19 +94,6 @@ class SessionStore:
                     cur.execute(statement)
 
     # -- writing -----------------------------------------------------------
-
-    def ensure_conversation(self, conversation_id: str) -> None:
-        """Make sure a conversation row exists for ``conversation_id``."""
-        with self.db.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO conversations (id)
-                    VALUES (%(id)s)
-                    ON CONFLICT (id) DO NOTHING
-                    """,
-                    {"id": conversation_id},
-                )
 
     def append_message(
         self,
@@ -152,7 +152,7 @@ class SessionStore:
         what the prompt builder uses to bound the replay window.
         """
         query = """
-            SELECT role, content, sources
+            SELECT id, role, content, sources
             FROM messages
             WHERE conversation_id = %(conversation_id)s
             ORDER BY id DESC
@@ -173,12 +173,70 @@ class SessionStore:
         messages.reverse()
         return messages
 
+    def store_summary(
+        self,
+        conversation_id: str,
+        summary: str,
+        covers_up_to_id: int,
+    ) -> int:
+        """Store a summary of the messages up to ``covers_up_to_id``.
+
+        Only the newest summary is used, so the older ones are removed -
+        a summary of a summary would lose detail for no benefit.
+        """
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM conversation_summaries WHERE conversation_id = %s",
+                    (conversation_id,),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO conversation_summaries
+                        (conversation_id, summary, covers_up_to_id)
+                    VALUES (%(conversation_id)s, %(summary)s, %(covers_up_to_id)s)
+                    RETURNING id
+                    """,
+                    {
+                        "conversation_id": conversation_id,
+                        "summary": summary,
+                        "covers_up_to_id": covers_up_to_id,
+                    },
+                )
+                return int(cur.fetchone()["id"])
+
+    def latest_summary(self, conversation_id: str) -> StoredSummary | None:
+        """The newest stored summary for a conversation, if there is one."""
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT summary, covers_up_to_id
+                    FROM conversation_summaries
+                    WHERE conversation_id = %(conversation_id)s
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    {"conversation_id": conversation_id},
+                )
+                row = cur.fetchone()
+        if not row:
+            return None
+        return StoredSummary(
+            summary=row["summary"],
+            covers_up_to_id=int(row["covers_up_to_id"]),
+        )
+
     def clear(self, conversation_id: str) -> None:
         """Delete a conversation and all of its messages."""
         with self.db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "DELETE FROM messages WHERE conversation_id = %s",
+                    (conversation_id,),
+                )
+                cur.execute(
+                    "DELETE FROM conversation_summaries WHERE conversation_id = %s",
                     (conversation_id,),
                 )
                 cur.execute(
@@ -197,4 +255,5 @@ class SessionStore:
             role=row["role"],
             content=row["content"],
             sources=list(sources or []),
+            id=int(row["id"]) if row.get("id") is not None else None,
         )

@@ -14,7 +14,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from api.session_store import SessionStore  # noqa: E402
+from augmentation.session_store import SessionStore  # noqa: E402
 from retrieval.config import DatabaseSettings  # noqa: E402
 from retrieval.database import Database  # noqa: E402
 
@@ -115,3 +115,38 @@ def test_an_unknown_conversation_has_no_history(store: SessionStore):
 def test_an_invalid_role_is_rejected(store: SessionStore):
     with pytest.raises(ValueError):
         store.append_message(TEST_CONVERSATION, "system", "Not a role")
+
+
+def test_a_summary_is_stored_against_the_conversation(store: SessionStore):
+    store.append_message(TEST_CONVERSATION, "user", "First question")
+    message_id = store.append_message(TEST_CONVERSATION, "assistant", "Answer")
+
+    store.store_summary(TEST_CONVERSATION, "The user asked about Azure.", message_id)
+
+    stored = store.latest_summary(TEST_CONVERSATION)
+    assert stored is not None
+    assert stored.summary == "The user asked about Azure."
+    assert stored.covers_up_to_id == message_id
+
+
+def test_a_conversation_without_a_summary_has_none(store: SessionStore):
+    assert store.latest_summary(TEST_CONVERSATION) is None
+
+
+def test_storing_a_summary_replaces_the_previous_one(store: SessionStore):
+    store.append_message(TEST_CONVERSATION, "user", "First question")
+    store.store_summary(TEST_CONVERSATION, "An old summary.", 1)
+    store.store_summary(TEST_CONVERSATION, "A newer summary.", 2)
+
+    stored = store.latest_summary(TEST_CONVERSATION)
+    assert stored is not None
+    assert stored.summary == "A newer summary."
+
+
+def test_the_messages_carry_their_row_ids(store: SessionStore):
+    store.append_message(TEST_CONVERSATION, "user", "First question")
+
+    history = store.history(TEST_CONVERSATION)
+
+    assert history[0].id is not None
+    assert isinstance(history[0].id, int)

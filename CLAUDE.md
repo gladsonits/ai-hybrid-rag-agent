@@ -8,7 +8,16 @@ The target pipeline: load documents (currently PDF) -> extract and chunk text ->
 
 **Current state: early.** PDF text extraction and structure-aware chunking work. The chunks are stored in PostgreSQL with **both** a dense index (pgvector) and a sparse index (Postgres full-text search), and the two are fused with reciprocal rank fusion. A FastAPI chat endpoint sits on top: it retrieves, calls an LLM (Groq) with the passages it retrieved, and streams the answer back as server-sent events. Conversation history is kept in PostgreSQL, so a follow-up question is answered with the earlier turns in view.
 
-The code is split into three packages: `src/indexing/` prepares documents into chunks, `src/retrieval/` owns the indexes and the search, and `src/api/` serves the chat endpoint. See **Layout**.
+The code follows the four stages of the pipeline, one package each:
+
+| Stage | Package | What it does |
+|---|---|---|
+| Indexing | `src/indexing/` | documents -> chunks -> embeddings, stored in both indexes |
+| Retrieval | `src/retrieval/` | the dense and sparse indexes, fused with RRF |
+| Augmentation | `src/augmentation/` | the model's context: the retrieved passages, the conversation, and a summary of the part too long to replay |
+| Generation | `src/generation/` | the call to the LLM, and the citations the answer used |
+
+`src/api/` is the transport only - the FastAPI wiring, the request/response shapes, and the CLI. It holds no business logic. See **Layout**.
 
 Treat roadmap items as open questions to settle with the user, not as decisions already made.
 
@@ -57,31 +66,44 @@ src/retrieval/             # everything that searches the index
   text_search.py           # sparse retrieval (Postgres tsvector/tsquery)
   retriever.py             # hybrid search, fuses both indexes with RRF
   run_search.py            # CLI: query the index
-src/api/                 # the chat service and the HTTP endpoint
-  config.py              # env-driven settings (Groq key, model, chat tuning)
-  llm.py                 # the Groq client, behind a small interface
-  prompt.py              # builds the messages: context, history, the question
-  session_store.py       # conversation history in PostgreSQL
-  chat_service.py        # retrieve -> prompt -> stream -> remember
+src/augmentation/         # the model's context for one turn
+  config.py              # env-driven settings (how much context to gather)
+  history.py             # the conversation: the replay window, the search query
+  context.py             # builds the messages: passages, summary, history, question
+  session_store.py       # conversation history and summaries, in PostgreSQL
+  augmenter.py           # retrieve -> choose the window -> summarize
+  chat_service.py        # the turn: augment -> generate -> remember
+src/generation/           # the call to the model, and the citations
+  config.py              # env-driven settings (Groq key, model, temperature)
+  llm.py                 # the LlmClient interface and the Groq client
+  responder.py           # the prompt goes in, the text and citations come out
+  citations.py           # resolves the model's [1] markers to the passages
+  summarizer.py          # summarizes a run of conversation turns
+src/api/                 # the transport only - no business logic
+  config.py              # env-driven settings (where the API listens)
   schemas.py             # request/response shapes
   app.py                 # the FastAPI app and the POST /chat endpoint
   run_api.py             # CLI: serve the API with uvicorn
-tests/                     # pytest suite for the indexing stages
+tests/                     # pytest suite
 datasource/ # source documents, gitignored
 .env                       # environment variables (gitignored - see gotcha 1)
 .env.example               # placeholder copy of the env vars
 pyproject.toml             # project metadata and dependencies
 ```
 
-Three packages under `src/`, split by what they do:
+Six packages under `src/`, split by the stage of the pipeline they belong to:
 
 - **`src/indexing/`** prepares documents - it reads a file and produces chunks. It does not know how a chunk is searched.
 - **`src/retrieval/`** owns the indexes and the search. It knows nothing about PDFs.
-- **`src/api/`** serves the chat endpoint. It reads the indexes through `retrieval` and knows nothing about PDFs.
+- **`src/augmentation/`** builds the model's context. It reads the indexes through `retrieval` and knows nothing about HTTP.
+- **`src/generation/`** talks to the model and resolves the citations. It knows nothing about the index or about HTTP.
+- **`src/api/`** is the transport. It reads the other packages and holds no business logic of its own.
 
-The dependency runs one way only - `indexing` -> `retrieval` -> `api` (the indexer writes through `VectorStore`; the chunker knows nothing about vectors; the chat service reads the indexes but never the chunker). `retrieval` must never import from `indexing`, and `api` must never import from `indexing` either, or the packages become a cycle.
+The dependency runs one way only - `indexing` -> `retrieval` -> `augmentation` -> `generation` -> `api` (the indexer writes through `VectorStore`; the chunker knows nothing about vectors; the augmenter reads the indexes but never the chunker; the api layer only wires the others together). `retrieval` must never import from `indexing`, and `api` must never import from `indexing` either, or the packages become a cycle.
 
-Both are real packages: they have `__init__.py`, they are listed in `[tool.uv.build-backend] module-name`, and they are installed. Import them by their full path - `from retrieval.database import Database`, `from indexing.chunker import PDFChunker` - never flat (`from database import Database`), which will not resolve outside the repo root.
+The one place two stages meet is `augmentation` -> `generation`: the augmenter needs a model to summarize the conversation with, so it takes an `LlmClient`. That interface lives in `generation/llm.py`, so `generation` never has to import `augmentation` back.
+
+All six are real packages: they have `__init__.py`, they are listed in `[tool.uv.build-backend] module-name`, and they are installed. Import them by their full path - `from retrieval.database import Database`, `from indexing.chunker import PDFChunker` - never flat (`from database import Database`), which will not resolve outside the repo root.
 
 ## Chunking
 
@@ -149,30 +171,53 @@ DO UPDATE SET ...
 
 **The embedding column's dimension is fixed at creation time.** Changing `EMBEDDING_MODEL` means the column must be recreated - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` will not change an existing `vector(384)` into a `vector(768)`. Drop and re-create the table when the model changes.
 
-## Chat API
+## Augmentation, generation and the chat API
 
-`src/api/` serves one endpoint over the index: `POST /chat`.
+The last three stages of the pipeline are separate packages, and the API is the transport that wires them together.
+
+### The augmentation step - `src/augmentation/`
+
+This is what the model is given for one turn. `Augmenter.augment()` does three things in order:
+
+1. **Retrieves.** The question is first made self-contained by `build_retrieval_query` (`augmentation/history.py`), which folds the earlier *user* questions into the search query with the current question last. The retrieval step does not see the conversation, and "what was my role in it?" means nothing to a keyword search on its own - without this a follow-up retrieves the wrong chunks even though the model has the context. The answers the assistant gave are deliberately left out of the query.
+2. **Chooses the replay window.** `select_window` keeps the newest turns, up to a token budget. The budget is spent on *whole* turns - a question and the answer it produced - because replaying an answer without its question gives the model a reply to something it never saw. The newest turn is always kept, even when it does not fit.
+3. **Summarizes the rest.** Whatever did not fit is summarized by the model (`generation/summarizer.py`) and the summary is put in the context in place of the original turns.
+
+`build_messages` (`augmentation/context.py`) assembles the final message list: one system message holding the instructions, the numbered passages and the summary, then the replayed turns, then the question. The passages and the summary go into the *system* message so they are always in force, rather than being a user turn the model might treat as a question.
+
+**A summary is not regenerated on every turn.** Once a summary has been written it is stored in `conversation_summaries`, against the id of the last message it covers, and only the turns *after* that id are considered for summarizing next time. Re-summarizing a summary would only lose detail.
+
+### The generation step - `src/generation/`
+
+`Responder.respond()` sends the prompt and streams the answer back token by token. When the answer is complete, the citation markers the model used - `[1]`, `[2]` - are resolved back to the passages they point at (`generation/citations.py`), so the response can say where each claim came from. A marker outside the range of the passages that were retrieved is **dropped**: the model must not be able to invent a source. The fullwidth brackets are understood too, because models often emit those.
+
+`LlmClient` (`generation/llm.py`) is the interface every call to the model goes through, so the whole pipeline can be tested without a network call and without an API key. The summarizer uses the same interface, because summarizing a conversation is a generation task too.
+
+### The chat API - `src/api/`
+
+Transport only. It owns the FastAPI wiring, the request/response shapes and the CLI, and no business logic.
+
+`POST /chat`:
 
 ```bash
-curl -N -X POST http://127.0.0.1:8000/chat \n  -H "Content-Type: application/json" \n  -d '{"message": "What projects did Rose work on?", "conversation_id": "s1"}'
+curl -N -X POST http://127.0.0.1:8000/chat   -H "Content-Type: application/json"   -d '{"message": "What projects did Rose work on?", "conversation_id": "s1"}'
 ```
 
-The request carries the user's message and a `conversation_id`. The response is a `text/event-stream` with four kinds of event:
+The request carries the user message and a `conversation_id`. The response is a `text/event-stream` with five kinds of event:
 
 | Event | Carries |
 |---|---|
 | `sources` | The passages the answer will be based on. Sent first, so the UI can show them while the answer is still arriving. |
 | `token` | One piece of the answer. |
+| `citations` | The passages the answer actually cited, resolved from the markers the model used. |
 | `done` | The end of the stream, with the full answer. |
 | `error` | A failure. The stream ends after it. |
 
 `GET /health` is a liveness check that does not touch the database, and `GET /docs` serves the interactive API docs.
 
-**The conversation id is the only thing holding a session together.** The endpoint keeps no state in the process - the client sends the same `conversation_id` for every message in a conversation, and the model picks up where it left off. A different id starts a new conversation. The history lives in PostgreSQL, in the `conversations` and `messages` tables, so it survives a restart of the API and works unchanged behind more than one worker.
+**The conversation id is the only thing holding a session together.** The endpoint keeps no state in the process - the client sends the same `conversation_id` for every message in a conversation, and the model picks up where it left off. A different id starts a new conversation. The history lives in PostgreSQL, in the `conversations`, `messages` and `conversation_summaries` tables, so it survives a restart of the API and works unchanged behind more than one worker.
 
-**A follow-up question is made self-contained before it reaches the index.** The model sees the replayed conversation, but the *retrieval* step does not - and "what was my role in it?" means nothing to a keyword search on its own. So `build_retrieval_query` (`api/prompt.py`) folds the earlier user questions into the search query, with the current question last so it carries the most weight. Without this, a follow-up retrieves the wrong chunks even though the model has the context.
-
-**The answer is grounded in the passages.** The retrieved chunks are numbered and placed in the system message, and the model is told to cite them with bracketed markers like `[1]`. The sources are stored alongside the answer, so a later turn can see what the earlier answers were built from.
+**The answer is grounded in the passages.** The retrieved chunks are numbered in the system message and the model is told to cite them with bracketed markers. The sources are stored alongside the answer, so a later turn can see what the earlier answers were built from.
 
 Two things are deliberately kept off the event loop. The retriever is synchronous and does blocking work - a database round trip and an embedding forward pass - so it runs in a worker thread through `anyio.to_thread.run_sync`; running it inline would stall every other request. And the embedding model is loaded once in the FastAPI lifespan, so the first real request does not pay several seconds for the load.
 
@@ -184,8 +229,9 @@ Two things are deliberately kept off the event loop. The retriever is synchronou
 - `tests/test_pages.py` - label counts match the raw PDF, page numbers match the source block, a label never swallows the bullet above it, project metadata does not leak between projects.
 - `tests/test_edge_cases.py` - missing PDF, empty `SOURCE_PDF`, determinism, the size ceiling, contact details surviving, and no bullet markers leaking into chunk text.
 - `tests/test_storage.py` - the storage layer against a live PostgreSQL: upsert idempotency, dense ranking, filters, keyword stemming, matched terms, and the RRF score formula. **These tests skip themselves** when PostgreSQL is unreachable, or when the live `embedding` column is not `vector(384)`.
-- `tests/test_api.py` - the chat endpoint against stand-ins for the retriever, the LLM and the session store: the SSE stream, the conversation memory, the follow-up query, and the prompt building. **No database, no model and no API key needed.**
-- `tests/test_sessions.py` - the conversation history against a live PostgreSQL: message ordering, the history window, source storage and session isolation. **These tests skip themselves** when PostgreSQL is unreachable.
+- `tests/test_api.py` - the chat endpoint against stand-ins for the retriever, the LLM and the session store: the SSE stream, the sources, the citations, the conversation memory and the follow-up query. **No database, no model and no API key needed.**
+- `tests/test_augmentation.py` - the augmentation and generation steps against stand-ins: the replay window, the retrieval query, the context building, the summarization and the citation resolution. **No database, no model and no API key needed.**
+- `tests/test_sessions.py` - the conversation history against a live PostgreSQL: message ordering, the history window, source storage, the summaries and session isolation. **These tests skip themselves** when PostgreSQL is unreachable.
 
 Run with `uv run python -m pytest`. The chunker tests skip themselves if `datasource/` is empty, since `datasource/` is gitignored and a fresh clone has no source PDF.
 
@@ -206,6 +252,16 @@ Read from `.env` via `python-dotenv` (`load_dotenv()` at module import in script
 | `EMBEDDING_NORMALIZE` | L2-normalise the vectors. Default `true` - required for the cosine index to behave. |
 | `EMBEDDING_MAX_SEQ_LENGTH` | Token limit. Default `512`. |
 | `HF_TOKEN` | Hugging Face token, for gated or private models. |
+| `GROQ_API_KEY` | The Groq API key. The chat API will not start without it. |
+| `LLM_MODEL` | Which Groq model to answer with. Default `llama-3.3-70b-versatile`. |
+| `LLM_TEMPERATURE` | Sampling temperature. Default `0.2`. |
+| `LLM_MAX_TOKENS` | The cap on the length of an answer. Default `1024`. |
+| `AUGMENT_TOP_K` | How many chunks the hybrid search returns per question. Default `5`. |
+| `AUGMENT_HISTORY_TURNS` | How many of the most recent turns are replayed verbatim. Default `5`. |
+| `AUGMENT_QUERY_HISTORY_MESSAGES` | How many earlier questions are folded into the search query. Default `2`. |
+| `AUGMENT_MAX_HISTORY_TOKENS` | The token budget for the replayed history. Past it, the older turns are summarized. Default `2000`. |
+| `AUGMENT_SUMMARY_MAX_TOKENS` | The cap on the length of the summary. Default `400`. |
+| `API_HOST` / `API_PORT` | Where the chat API listens. Default `127.0.0.1` / `8000`. |
 | `GROQ_API_KEY` | API key for the LLM provider. The chat API will not start without it. |
 | `LLM_MODEL` | The Groq model id. Default `llama-3.3-70b-versatile`. |
 | `LLM_TEMPERATURE` | Sampling temperature. Default `0.2` - low, because the answer should follow the passages. |
@@ -232,7 +288,7 @@ The free Hugging Face **Hub download** of a model does not need credits. The hos
 2. **`src/indexing/pdf.py:11` prints the wrong thing** - `f"Number of pages: {reader.pages}"` prints the list repr, not a count. It should be `len(reader.pages)`.
 3. **`src/indexing/pdf.py:17` has an import-time side effect** - `print(extract_text_from_pdf())` runs on import. Guard with `if __name__ == "__main__":` so importing the module does not trigger extraction.
 4. **`page.extract_text()` can return `None`** for pages with no extractable text, which makes `text += page.extract_text()` raise `TypeError`. Use `page.extract_text() or ""`.
-5. **The two packages must stay installed and absolute.** `src/indexing/` and `src/retrieval/` both have an `__init__.py` and are both listed in `[tool.uv.build-backend] module-name`, so `uv build` ships them. Import them by full path (`from retrieval.database import Database`). A flat import (`from database import Database`) only resolves if the module's own directory happens to be on `sys.path` - it breaks the moment the code is installed or imported from anywhere else.
+5. **The packages must stay installed and absolute.** All six under `src/` have an `__init__.py` and are all listed in `[tool.uv.build-backend] module-name`, so `uv build` ships them. Import them by full path (`from retrieval.database import Database`). A flat import (`from database import Database`) only resolves if the module's own directory happens to be on `sys.path` - it breaks the moment the code is installed or imported from anywhere else.
 6. **`README.md` is empty.** It is the `readme` referenced by `pyproject.toml` and needs real content.
 7. **`datasource/` is gitignored** - a fresh clone has no documents. Anyone else working on this repo must supply their own files, and `SOURCE_PDF` must be updated accordingly.
 8. **The PDF layout engine corrupts text.** `pypdf` hard-wraps body text mid-sentence and injects stray spaces inside words (`Aj ax`, `larg est`, `implementa tion`, `Ju n 20 19`). The chunker re-joins wrapped lines, but the intra-word spaces are still in the extracted text and will land in chunks and embeddings. Fix at the source if the noise hurts retrieval - a custom `extraction_mode` on `PdfReader` may extract cleaner text.
@@ -243,6 +299,11 @@ The free Hugging Face **Hub download** of a model does not need credits. The hos
 13. **`tsvector` stores stemmed lexemes.** "kubernetes" is stored and returned as `kubernet`. Assert on the stem, not the surface form.
 14. **The API will not start without `GROQ_API_KEY`.** `GroqLlmClient` checks the key when it is built, not on the first request, so a misconfigured deployment fails loudly at startup instead of on the first question.
 15. **A conversation id is the only thing that keeps a session together.** The endpoint holds no state in memory - the client must send the same `conversation_id` for every message in a conversation, or the model starts each question from scratch.
+16. **The project name only appears in the chunk metadata, never in the chunk text.** "TruStage" is a `metadata->>'project'` value; the text of that chunk says "Trustage applications" or nothing at all. So a question naming the project does not match it in the keyword index, and the dense index has nothing to match on either. This is why a follow-up like "what was my role in the TruStage project?" can come back empty even though the chunk is right there. The fix is to search the metadata column too, or to put the project name into the embedded text.
+17. **The heredoc shell writes collapse `
+` into real newlines.** When writing a file through `uv run python - << 'PYEOF'`, a `
+` inside the payload ends up as an actual newline and breaks the string literal. Write the file with the Write tool where possible, or build the newline with `chr(92) + "n"` in the payload.
+18. **The `api` package is transport only.** Business logic that used to live there (the prompt building, the session store, the chat service, the LLM client) now lives in `augmentation/` and `generation/`. If a rule starts appearing in `src/api/`, it belongs in one of those two.
 
 ## Open decisions
 

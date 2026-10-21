@@ -30,8 +30,20 @@ build-backend = "uv_build"
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.uv.build-backend]
 module-root = "src"
-module-name = ["ai_hybrid_rag_agent", "api", "indexing", "retrieval"]
+module-name = [
+    "ai_hybrid_rag_agent",
+    "api",
+    "augmentation",
+    "generation",
+    "indexing",
+    "retrieval",
+]

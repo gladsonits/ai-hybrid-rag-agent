@@ -9,25 +9,28 @@ Usage (from the repo root):
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from api.config import ApiSettings  # noqa: E402
+
 
 def main() -> int:
+    settings = ApiSettings.from_env()
+
     parser = argparse.ArgumentParser(description="Serve the chat API.")
     parser.add_argument(
         "--host",
-        default=os.getenv("API_HOST", "127.0.0.1"),
-        help="address to bind (default: 127.0.0.1)",
+        default=settings.host,
+        help="address to bind (default: %(default)s)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.getenv("API_PORT", "8000")),
-        help="port to bind (default: 8000)",
+        default=settings.port,
+        help="port to bind (default: %(default)s)",
     )
     parser.add_argument(
         "--reload",

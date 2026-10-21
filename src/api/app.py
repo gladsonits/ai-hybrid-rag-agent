@@ -1,17 +1,26 @@
 """The FastAPI application: one endpoint, ``POST /chat``.
 
-The endpoint receives the user's message, answers it from the hybrid index
-and streams the answer back as server-sent events.  The conversation history
-lives in PostgreSQL, keyed by a client-supplied ``conversation_id``, so the
-model has the context of the earlier questions when it answers a follow-up.
+This module is only the transport.  The work - retrieving, choosing what
+to replay, summarizing, answering, remembering - happens in
+:mod:`augmentation` and :mod:`generation`, and the endpoint just turns an
+HTTP request into a call on the chat service and the service events back
+into an HTTP response.
 
-The event stream carries four kinds of event:
+The endpoint receives the user message, answers it from the hybrid index
+and streams the answer back as server-sent events.  The conversation
+history lives in PostgreSQL, keyed by a client-supplied
+``conversation_id``, so the model has the context of the earlier questions
+when it answers a follow-up.
 
-- ``sources`` - the passages the answer will be based on, sent first so the
-  UI can show them while the answer is still arriving.
-- ``token``   - a piece of the answer, as it is produced.
-- ``done``    - the end of the stream, with the full answer.
-- ``error``   - a failure; the stream ends after it.
+The event stream carries five kinds of event:
+
+- ``sources``   - the passages the answer will be based on, sent first so
+  the UI can show them while the answer is still arriving.
+- ``token``     - a piece of the answer, as it is produced.
+- ``citations`` - the passages the answer actually cited, once the answer
+  is complete.
+- ``done``      - the end of the stream, with the full answer.
+- ``error``     - a failure; the stream ends after it.
 
 The heavy pieces - the embedding model, the database, the LLM client - are
 built once at startup and shared, because loading the embedding model takes
@@ -30,11 +39,18 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from api.chat_service import ChatService, SourcesEvent, TokenEvent
-from api.config import ChatSettings, LlmSettings
-from api.llm import GroqLlmClient, LlmClient
-from api.schemas import ChatEvent, ChatRequest, Source
-from api.session_store import SessionStore
+from api.schemas import ChatEvent, ChatRequest, Citation, Source
+from augmentation.augmenter import Augmenter
+from augmentation.chat_service import (
+    AnswerCompleteEvent,
+    ChatService,
+    ChatTokenEvent,
+    SourcesEvent,
+)
+from augmentation.config import AugmentationSettings
+from augmentation.session_store import SessionStore
+from generation.llm import GroqLlmClient
+from generation.responder import Responder
 from retrieval.database import Database
 from retrieval.embedder import EmbeddingModel
 from retrieval.retriever import HybridRetriever
@@ -58,7 +74,7 @@ class Services:
     database: Database | None
     embedder: EmbeddingModel | None
     retriever: HybridRetriever
-    llm: LlmClient
+    llm: Any
 
 
 def build_services() -> Services:
@@ -67,12 +83,17 @@ def build_services() -> Services:
     embedder = EmbeddingModel()
     retriever = HybridRetriever(database, embedder)
     session_store = SessionStore(database)
-    llm = GroqLlmClient(LlmSettings.from_env())
-    chat_service = ChatService(
+    llm = GroqLlmClient()
+    augmenter = Augmenter(
         retriever=retriever,
         llm=llm,
+        settings=AugmentationSettings.from_env(),
+        summary_store=session_store,
+    )
+    chat_service = ChatService(
+        augmenter=augmenter,
+        responder=Responder(llm),
         session_store=session_store,
-        settings=ChatSettings.from_env(),
     )
     return Services(
         chat_service=chat_service,
@@ -188,9 +209,24 @@ async def _chat_events(
                         for source in event.sources
                     ],
                 )
-            elif isinstance(event, TokenEvent):
+            elif isinstance(event, ChatTokenEvent):
                 answer_parts.append(event.token)
                 yield ChatEvent(type="token", token=event.token)
+            elif isinstance(event, AnswerCompleteEvent):
+                answer_parts = [event.answer]
+                yield ChatEvent(
+                    type="citations",
+                    citations=[
+                        Citation(
+                            marker=citation.marker,
+                            chunk_id=citation.chunk_id,
+                            text=citation.text,
+                            metadata=citation.metadata,
+                            score=citation.score,
+                        )
+                        for citation in event.citations
+                    ],
+                )
 
         yield ChatEvent(
             type="done",
