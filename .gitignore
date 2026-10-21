@@ -9,3 +9,8 @@ wheels/
 
 # Virtual environments
 .venv
+.pytest_cache/
+__pycache__/
+
+# Local secrets - never commit (see CLAUDE.md gotcha 1)
+.env
