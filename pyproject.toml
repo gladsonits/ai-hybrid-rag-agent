@@ -7,7 +7,17 @@ authors = [
     { name = "gladsonits", email = "gladson.bits@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pypdf>=6.21.1",
+    "python-dotenv>=1.2.4",
+    "psycopg[binary]>=3.3.6",
+    "sentence-transformers>=5.2.0",
+    "torch>=2.9.0",
+    "fastapi>=0.158.0",
+    "uvicorn[standard]>=0.54.0",
+    "groq>=1.7.0",
+    "anyio>=4.15.1",
+]
 
 [project.scripts]
 ai-hybrid-rag-agent = "ai_hybrid_rag_agent:main"
@@ -15,3 +25,13 @@ ai-hybrid-rag-agent = "ai_hybrid_rag_agent:main"
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.uv.build-backend]
+module-root = "src"
+module-name = ["ai_hybrid_rag_agent", "api", "indexing", "retrieval"]
