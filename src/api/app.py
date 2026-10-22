@@ -39,7 +39,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from api.schemas import ChatEvent, ChatRequest, Citation, Source
+from api.schemas import ChatEvent, ChatRequest, Citation, FaqEntry, Source
 from augmentation.augmenter import Augmenter
 from augmentation.chat_service import (
     AnswerCompleteEvent,
@@ -51,8 +51,12 @@ from augmentation.config import AugmentationSettings
 from augmentation.session_store import SessionStore
 from generation.llm import GroqLlmClient
 from generation.responder import Responder
+from memory.cache import AnswerCache, RedisAnswerCache
+from memory.config import CacheSettings, FaqSettings
+from memory.faq import FaqMatcher, FaqMetrics, FaqRegistry, NullFaqRegistry
 from retrieval.database import Database
 from retrieval.embedder import EmbeddingModel
+from retrieval.faq_store import NullFaqMatcher, PostgresFaqMatcher
 from retrieval.retriever import HybridRetriever
 
 logger = logging.getLogger(__name__)
@@ -75,6 +79,9 @@ class Services:
     embedder: EmbeddingModel | None
     retriever: HybridRetriever
     llm: Any
+    cache: AnswerCache
+    faq_matcher: FaqMatcher
+    faq_metrics: FaqMetrics
 
 
 def build_services() -> Services:
@@ -84,16 +91,35 @@ def build_services() -> Services:
     retriever = HybridRetriever(database, embedder)
     session_store = SessionStore(database)
     llm = GroqLlmClient()
+    settings = AugmentationSettings.from_env()
+    cache_settings = CacheSettings.from_env()
+    faq_settings = FaqSettings.from_env()
+    answer_cache = RedisAnswerCache(cache_settings)
+    faq_metrics: FaqMetrics = (
+        FaqRegistry(faq_settings, cache_settings)
+        if faq_settings.enabled
+        else NullFaqRegistry(cache_settings)
+    )
+    faq_matcher: FaqMatcher = (
+        PostgresFaqMatcher(database, embedder, faq_settings)
+        if faq_settings.enabled
+        else NullFaqMatcher()
+    )
     augmenter = Augmenter(
         retriever=retriever,
         llm=llm,
-        settings=AugmentationSettings.from_env(),
+        settings=settings,
         summary_store=session_store,
     )
     chat_service = ChatService(
         augmenter=augmenter,
         responder=Responder(llm),
         session_store=session_store,
+        answer_cache=answer_cache,
+        settings=settings,
+        faq_matcher=faq_matcher,
+        faq_metrics=faq_metrics,
+        faq_settings=faq_settings,
     )
     return Services(
         chat_service=chat_service,
@@ -102,6 +128,9 @@ def build_services() -> Services:
         embedder=embedder,
         retriever=retriever,
         llm=llm,
+        cache=answer_cache,
+        faq_matcher=faq_matcher,
+        faq_metrics=faq_metrics,
     )
 
 
@@ -129,7 +158,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 services.embedder.settings.model,
             )
 
-    yield
+    if await services.cache.ping():
+        logger.info("the memory is ready")
+    else:
+        logger.warning(
+            "the memory is not reachable - answers will not be cached"
+        )
+
+    await _ensure_faq_index(services)
+
+    try:
+        yield
+    finally:
+        await services.cache.close()
+        await services.faq_metrics.close()
 
 
 def create_app(services: Services | None = None) -> FastAPI:
@@ -153,6 +195,23 @@ def create_app(services: Services | None = None) -> FastAPI:
     def health() -> dict[str, Any]:
         """A cheap liveness check that does not touch the database."""
         return {"status": "ok"}
+
+    @app.get("/memory/faqs")
+    async def memory_faqs(
+        limit: int = 50,
+        services: Services = Depends(_get_services),
+    ) -> dict[str, Any]:
+        """The questions that are asked often, and what is known about them.
+
+        Only the questions that meet the FAQ rule are listed: asked often
+        enough, served from the memory at least once, and still fresh.
+        """
+        entries = await services.faq_metrics.faqs(limit=limit)
+        return {
+            "faqs": [
+                FaqEntry(**entry.to_dict()).model_dump() for entry in entries
+            ]
+        }
 
     @app.post("/chat")
     async def chat(
@@ -182,6 +241,22 @@ def create_app(services: Services | None = None) -> FastAPI:
     return app
 
 
+async def _ensure_faq_index(services: Services) -> None:
+    """Create the table the frequently asked questions are indexed in.
+
+    The index is a convenience, not a requirement: if it cannot be built
+    the memory still answers the exact question, and the questions simply
+    are not matched by meaning.  So a failure is logged, not raised.
+    """
+    try:
+        import anyio.to_thread
+
+        await anyio.to_thread.run_sync(services.faq_matcher.ensure_schema)
+        logger.info("the frequently asked question index is ready")
+    except Exception:
+        logger.exception("the frequently asked question index is not available")
+
+
 def _get_services(request: Request) -> Services:
     """FastAPI dependency that hands the endpoint the shared services."""
     return request.app.state.services
@@ -199,6 +274,8 @@ async def _chat_events(
             if isinstance(event, SourcesEvent):
                 yield ChatEvent(
                     type="sources",
+                    cache_hit=event.cached,
+                    cache_match=event.match,
                     sources=[
                         Source(
                             chunk_id=int(source.get("chunk_id", 0)),
@@ -216,6 +293,8 @@ async def _chat_events(
                 answer_parts = [event.answer]
                 yield ChatEvent(
                     type="citations",
+                    cache_hit=event.cached,
+                    cache_match=event.match,
                     citations=[
                         Citation(
                             marker=citation.marker,

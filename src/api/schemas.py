@@ -58,6 +58,11 @@ class ChatEvent(BaseModel):
     answer, ``sources`` for the passages the answer was built from,
     ``citations`` for the passages it actually cited, ``done`` for the end
     of the stream, and ``error`` for a failure.
+
+    ``cache_hit`` says whether the turn was answered from the memory
+    rather than by the model, and ``cache_match`` says how the memory
+    answered it - ``exact`` for the same words, ``semantic`` for the same
+    question in other words.
     """
 
     type: str
@@ -66,3 +71,24 @@ class ChatEvent(BaseModel):
     citations: list[Citation] | None = None
     conversation_id: str | None = None
     error: str | None = None
+    cache_hit: bool | None = None
+    cache_match: str | None = None
+
+
+class FaqEntry(BaseModel):
+    """One frequently asked question, and what is known about it.
+
+    ``asks`` is how many times the question has been asked, ``hits`` how
+    many of those the memory served, and ``misses`` how many had to be
+    answered by the model.  ``saved_ms`` is the model time the memory
+    has saved on it, and ``cost_ms`` is what the last answer cost.
+    """
+
+    question: str
+    asks: int
+    hits: int
+    misses: int
+    hit_rate: float
+    saved_ms: int
+    cost_ms: int
+    last_asked_at: float

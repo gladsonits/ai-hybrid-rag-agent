@@ -84,3 +84,35 @@ def build_source_records(passages: Sequence[Any]) -> list[dict[str, Any]]:
         }
         for passage in passages
     ]
+
+
+def citation_records(citations: Sequence[Citation]) -> list[dict[str, Any]]:
+    """The stored form of the citations.
+
+    Plain dictionaries, because they have to survive a round trip through
+    JSON - through the answer cache, for instance.
+    """
+    return [
+        {
+            "marker": citation.marker,
+            "chunk_id": citation.chunk_id,
+            "text": citation.text,
+            "metadata": citation.metadata,
+            "score": citation.score,
+        }
+        for citation in citations
+    ]
+
+
+def citations_from_records(records: Sequence[dict[str, Any]]) -> list[Citation]:
+    """Read the citations back out of their stored form."""
+    return [
+        Citation(
+            marker=int(record.get("marker", 0)),
+            chunk_id=int(record.get("chunk_id", 0)),
+            text=str(record.get("text", "")),
+            metadata=dict(record.get("metadata") or {}),
+            score=record.get("score"),
+        )
+        for record in records
+    ]

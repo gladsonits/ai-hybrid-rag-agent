@@ -1,0 +1,34 @@
+# The distributed memory: a Redis server, run in Docker.
+#
+#   docker compose up -d redis
+#
+# The API reaches it at REDIS_HOST:REDIS_PORT, with REDIS_PASSWORD.  The
+# password and the port fall back to the same defaults the API uses, so
+# the two agree whether or not the variables are set.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --requirepass
+      - "${REDIS_PASSWORD:-ragredis}"
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - "256mb"
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH='${REDIS_PASSWORD:-ragredis}' redis-cli ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis-data:

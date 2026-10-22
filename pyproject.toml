@@ -17,6 +17,7 @@ dependencies = [
     "uvicorn[standard]>=0.54.0",
     "groq>=1.7.0",
     "anyio>=4.15.1",
+    "redis>=8.1.0",
 ]
 
 [project.scripts]
@@ -45,5 +46,6 @@ module-name = [
     "augmentation",
     "generation",
     "indexing",
+    "memory",
     "retrieval",
 ]

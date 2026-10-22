@@ -6,7 +6,7 @@
 
 The target pipeline: load documents (currently PDF) -> extract and chunk text -> index with **both** a dense (embedding/vector) index and a sparse (keyword/BM25) index -> fuse the two result sets -> retrieve -> generate an answer with an LLM that cites its sources.
 
-**Current state: early.** PDF text extraction and structure-aware chunking work. The chunks are stored in PostgreSQL with **both** a dense index (pgvector) and a sparse index (Postgres full-text search), and the two are fused with reciprocal rank fusion. A FastAPI chat endpoint sits on top: it retrieves, calls an LLM (Groq) with the passages it retrieved, and streams the answer back as server-sent events. Conversation history is kept in PostgreSQL, so a follow-up question is answered with the earlier turns in view.
+**Current state: early.** PDF text extraction and structure-aware chunking work. The chunks are stored in PostgreSQL with **both** a dense index (pgvector) and a sparse index (Postgres full-text search), and the two are fused with reciprocal rank fusion. A FastAPI chat endpoint sits on top: it retrieves, calls an LLM (Groq) with the passages it retrieved, and streams the answer back as server-sent events. Conversation history is kept in PostgreSQL, so a follow-up question is answered with the earlier turns in view. Answers to the questions that are asked often are kept in a **distributed memory** (Redis, run in Docker), so a question that has already been answered comes straight back without reaching the model.
 
 The code follows the four stages of the pipeline, one package each:
 
@@ -18,6 +18,8 @@ The code follows the four stages of the pipeline, one package each:
 | Generation | `src/generation/` | the call to the LLM, and the citations the answer used |
 
 `src/api/` is the transport only - the FastAPI wiring, the request/response shapes, and the CLI. It holds no business logic. See **Layout**.
+
+`src/memory/` is the distributed memory. It is not a stage of the pipeline - it sits beside it, and the chat turn asks it before the pipeline runs.
 
 Treat roadmap items as open questions to settle with the user, not as decisions already made.
 
@@ -31,6 +33,8 @@ Treat roadmap items as open questions to settle with the user, not as decisions 
 
 ```bash
 uv sync                                  # install/sync dependencies
+docker compose up -d redis               # start the distributed memory (Redis)
+docker compose down                      # stop it
 uv run python src/indexing/pdf.py        # run the PDF extractor
 uv run python src/indexing/chunker.py    # run the chunker (prints chunks as JSON)
 uv run python src/indexing/run_index.py --replace   # chunk -> embed -> store in PostgreSQL
@@ -65,6 +69,7 @@ src/retrieval/             # everything that searches the index
   vector_store.py          # dense retrieval (pgvector, cosine distance)
   text_search.py           # sparse retrieval (Postgres tsvector/tsquery)
   retriever.py             # hybrid search, fuses both indexes with RRF
+  faq_store.py             # the FAQ index: the questions, searchable by meaning
   run_search.py            # CLI: query the index
 src/augmentation/         # the model's context for one turn
   config.py              # env-driven settings (how much context to gather)
@@ -79,6 +84,10 @@ src/generation/           # the call to the model, and the citations
   responder.py           # the prompt goes in, the text and citations come out
   citations.py           # resolves the model's [1] markers to the passages
   summarizer.py          # summarizes a run of conversation turns
+src/memory/                # the distributed memory - answers asked often, in Redis
+  config.py              # env-driven settings (where Redis is, how long it keeps an answer)
+  cache.py               # the AnswerCache interface, the Redis cache, the cache key
+  faq.py                 # what makes a question frequently asked, and the statistics behind it
 src/api/                 # the transport only - no business logic
   config.py              # env-driven settings (where the API listens)
   schemas.py             # request/response shapes
@@ -86,24 +95,28 @@ src/api/                 # the transport only - no business logic
   run_api.py             # CLI: serve the API with uvicorn
 tests/                     # pytest suite
 datasource/ # source documents, gitignored
+docker-compose.yml         # the Redis server, run in Docker
 .env                       # environment variables (gitignored - see gotcha 1)
 .env.example               # placeholder copy of the env vars
 pyproject.toml             # project metadata and dependencies
 ```
 
-Six packages under `src/`, split by the stage of the pipeline they belong to:
+Seven packages under `src/`, split by the stage of the pipeline they belong to:
 
 - **`src/indexing/`** prepares documents - it reads a file and produces chunks. It does not know how a chunk is searched.
 - **`src/retrieval/`** owns the indexes and the search. It knows nothing about PDFs.
 - **`src/augmentation/`** builds the model's context. It reads the indexes through `retrieval` and knows nothing about HTTP.
 - **`src/generation/`** talks to the model and resolves the citations. It knows nothing about the index or about HTTP.
+- **`src/memory/`** holds the distributed memory: the answers, the statistics of the questions, and the port the FAQ search answers. It knows nothing about the pipeline - it stores an answer and gives it back.
 - **`src/api/`** is the transport. It reads the other packages and holds no business logic of its own.
 
 The dependency runs one way only - `indexing` -> `retrieval` -> `augmentation` -> `generation` -> `api` (the indexer writes through `VectorStore`; the chunker knows nothing about vectors; the augmenter reads the indexes but never the chunker; the api layer only wires the others together). `retrieval` must never import from `indexing`, and `api` must never import from `indexing` either, or the packages become a cycle.
 
+`memory` is a leaf beside the chain, not in it. It imports nothing from the project, and it may be imported: `augmentation` asks it, `api` builds it, and `retrieval` implements the one port it owns - the search for the question a new one means the same as. The port itself lives in `memory/faq.py`, next to the statistics it belongs with, so `retrieval` never has to import `augmentation` back.
+
 The one place two stages meet is `augmentation` -> `generation`: the augmenter needs a model to summarize the conversation with, so it takes an `LlmClient`. That interface lives in `generation/llm.py`, so `generation` never has to import `augmentation` back.
 
-All six are real packages: they have `__init__.py`, they are listed in `[tool.uv.build-backend] module-name`, and they are installed. Import them by their full path - `from retrieval.database import Database`, `from indexing.chunker import PDFChunker` - never flat (`from database import Database`), which will not resolve outside the repo root.
+All seven are real packages: they have `__init__.py`, they are listed in `[tool.uv.build-backend] module-name`, and they are installed. Import them by their full path - `from retrieval.database import Database`, `from indexing.chunker import PDFChunker` - never flat (`from database import Database`), which will not resolve outside the repo root.
 
 ## Chunking
 
@@ -171,7 +184,7 @@ DO UPDATE SET ...
 
 **The embedding column's dimension is fixed at creation time.** Changing `EMBEDDING_MODEL` means the column must be recreated - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` will not change an existing `vector(384)` into a `vector(768)`. Drop and re-create the table when the model changes.
 
-## Augmentation, generation and the chat API
+## Augmentation, generation, the memory and the chat API
 
 The last three stages of the pipeline are separate packages, and the API is the transport that wires them together.
 
@@ -193,6 +206,45 @@ This is what the model is given for one turn. `Augmenter.augment()` does three t
 
 `LlmClient` (`generation/llm.py`) is the interface every call to the model goes through, so the whole pipeline can be tested without a network call and without an API key. The summarizer uses the same interface, because summarizing a conversation is a generation task too.
 
+### The distributed memory - `src/memory/`
+
+The answers that are asked often are kept in Redis, which runs in Docker (`docker compose up -d redis`). The chat turn asks the memory **before** it retrieves or calls the model, so a question that has already been answered comes back straight away - with the same sources and the same citations it had the first time, and without a token spent on the model.
+
+The memory is asked **twice, in two ways**.
+
+**The exact question.** An answer is stored under a key built from the question and from the query the retrieval step would use (`build_cache_key`). The question is normalized, so a difference in case or spacing does not make a new key. The query carries the earlier questions of the conversation, so **a question that stands on its own always lands on the same key, and a follow-up lands on a key of its own** - a follow-up is answered from the passages and the history, and serving it a stale standalone answer would be wrong.
+
+**The meaning of the question.** An exact key only catches a question that is worded the same way. So the questions that have been asked are also indexed by meaning, in a second table - `faq_questions` in PostgreSQL, with a `vector(384)` column and an HNSW index, using the same embedder as the chunks (`retrieval/faq_store.py`). A new question is embedded and the nearest stored question is looked up; if it is close enough, the answer it already has is served. The search is the same one the retriever runs, with one difference that matters: **the score is compared against a threshold, not ranked.** A rank says only that one question is nearer than another; a threshold says the two questions really are the same one, which is what has to be true before an answer is served without asking the model.
+
+The threshold is `FAQ_SIMILARITY_THRESHOLD`, default `0.90`. Measured with the current embedder, against "What projects did Rose work on?":
+
+| Question | Similarity | Matched? |
+|---|---|---|
+| `What projects did Rose work on?` | 1.00 | yes |
+| `which projects was rose work on` | 0.96 | yes (and the exact key catches it too) |
+| `Which projects was Rose involved in?` | 0.93 | yes |
+| `What work projects has Rose been involved in?` | 0.92 | yes |
+| `List the projects Rose worked on` | 0.78 | no - a rephrasing that falls below the line |
+| `How many years of experience does Rose have?` | 0.69 | no - a different question about the same person |
+| `What was my role in the TruStage project?` | 0.30 | no |
+| `What is the capital of France?` | -0.02 | no |
+
+The default is deliberately high. The failure modes are not symmetric: a false hit returns a **confidently wrong answer** to a factual question, which is much worse than a slow answer. Lowering the threshold to `0.85` catches more rewordings at the cost of the margin above the "different question" scores; raising it to `0.95` keeps only near-identical wordings.
+
+**Only a question that stands on its own is looked up, and only a standalone question goes in the index.** A follow-up is answered from the conversation it was asked in, and a question in other words carries none of that context - so the answer to the stored question would not be the answer to this one. The test for "stands on its own" is that the retrieval query is exactly the question.
+
+**What makes a question an FAQ.** Every question the memory is asked about gets a record: how many times it has been asked, how many times the memory served it, how much model time that saved, and when it was last asked (`memory/faq.py`). A question counts as a **frequently asked question** when all three of these hold:
+
+- **asked often enough** - `FAQ_PROMOTE_ASKS`, default 3. One question asked twice is a coincidence, not a pattern.
+- **served from the memory at least once** - `FAQ_PROMOTE_HITS`, default 1. The point of remembering a question is that the same question comes back; a question that never repeats was never an FAQ.
+- **still fresh** - asked within `FAQ_FRESH_SECONDS`, default a day. A question nobody has asked in a week is not one anybody is asking now.
+
+The rule decides two things. **How long the answer is kept**: a fresh answer for an hour (`CACHE_TTL_SECONDS`), an FAQ for a day (`FAQ_TTL_SECONDS`) - and the time to live is only ever extended, never cut short, so a question that has gone quiet keeps the time it had left. **What the memory reports**: `GET /memory/faqs` lists the questions that meet the rule, with their asks, hits, hit rate, and the model time they have saved. The registry keeps at most `FAQ_MAX_ENTRIES` questions, and the least asked ones are dropped first - the eviction is least-frequently-used, and it is about what the memory keeps *track of*; the answers themselves expire on their own time to live.
+
+The counters live in Redis rather than in the process, so they are shared by every worker and survive a restart.
+
+**The memory fails open.** A Redis that cannot be reached is a miss, not an error: the lookup returns nothing, the write is dropped, and the chat turn carries on as if the memory were off. The API logs a warning at startup when the ping fails. The same goes for the FAQ index: if the table cannot be built, the exact memory still works and the questions are simply not matched by meaning.
+
 ### The chat API - `src/api/`
 
 Transport only. It owns the FastAPI wiring, the request/response shapes and the CLI, and no business logic.
@@ -213,6 +265,27 @@ The request carries the user message and a `conversation_id`. The response is a 
 | `done` | The end of the stream, with the full answer. |
 | `error` | A failure. The stream ends after it. |
 
+The `sources` and `citations` events carry two flags about where the answer came from:
+
+| Flag | Value | Meaning |
+|---|---|---|
+| `cache_hit` | `true` / `false` | Whether the answer came from the memory or from the model. |
+| `cache_match` | `null` / `"exact"` / `"semantic"` | *How* the memory recognised the question. `null` when the model answered. |
+
+`"exact"` is the same question, matched on the key. `"semantic"` is the same question in different words, matched on meaning against the FAQ index. The distinction matters when a caller wants to know whether a new phrasing was recognised - a semantic hit is the feature working, and it is the one worth measuring.
+
+`GET /memory/faqs` lists the questions that meet the FAQ rule, with the statistics behind each one:
+
+```bash
+curl http://127.0.0.1:8000/memory/faqs
+```
+
+```json
+{"faqs": [{"question": "What projects did Rose work on?", "asks": 4, "hits": 2,
+           "misses": 2, "hit_rate": 0.5, "saved_ms": 1180, "cost_ms": 590,
+           "last_asked_at": 1761182400.0}]}
+```
+
 `GET /health` is a liveness check that does not touch the database, and `GET /docs` serves the interactive API docs.
 
 **The conversation id is the only thing holding a session together.** The endpoint keeps no state in the process - the client sends the same `conversation_id` for every message in a conversation, and the model picks up where it left off. A different id starts a new conversation. The history lives in PostgreSQL, in the `conversations`, `messages` and `conversation_summaries` tables, so it survives a restart of the API and works unchanged behind more than one worker.
@@ -229,8 +302,10 @@ Two things are deliberately kept off the event loop. The retriever is synchronou
 - `tests/test_pages.py` - label counts match the raw PDF, page numbers match the source block, a label never swallows the bullet above it, project metadata does not leak between projects.
 - `tests/test_edge_cases.py` - missing PDF, empty `SOURCE_PDF`, determinism, the size ceiling, contact details surviving, and no bullet markers leaking into chunk text.
 - `tests/test_storage.py` - the storage layer against a live PostgreSQL: upsert idempotency, dense ranking, filters, keyword stemming, matched terms, and the RRF score formula. **These tests skip themselves** when PostgreSQL is unreachable, or when the live `embedding` column is not `vector(384)`.
-- `tests/test_api.py` - the chat endpoint against stand-ins for the retriever, the LLM and the session store: the SSE stream, the sources, the citations, the conversation memory and the follow-up query. **No database, no model and no API key needed.**
+- `tests/test_api.py` - the chat endpoint against stand-ins for the retriever, the LLM, the session store and the memory: the SSE stream, the sources, the citations, the conversation memory, the follow-up query, and the cache hit that skips the model. **No database, no model, no API key and no Redis needed.**
 - `tests/test_augmentation.py` - the augmentation and generation steps against stand-ins: the replay window, the retrieval query, the context building, the summarization and the citation resolution. **No database, no model and no API key needed.**
+- `tests/test_memory.py` - the distributed memory against a stand-in for the Redis client: the cache key, the stored form of an answer, the time to live, and the behaviour when Redis is down. **No Redis server needed.**
+- `tests/test_faq.py` - the FAQ rule and the semantic index: what makes a question frequently asked, the tiered time to live, the counters, the eviction, and the matching against a live PostgreSQL. **These tests skip themselves** when PostgreSQL is unreachable, or when the embedding model will not load.
 - `tests/test_sessions.py` - the conversation history against a live PostgreSQL: message ordering, the history window, source storage, the summaries and session isolation. **These tests skip themselves** when PostgreSQL is unreachable.
 
 Run with `uv run python -m pytest`. The chunker tests skip themselves if `datasource/` is empty, since `datasource/` is gitignored and a fresh clone has no source PDF.
@@ -262,14 +337,18 @@ Read from `.env` via `python-dotenv` (`load_dotenv()` at module import in script
 | `AUGMENT_MAX_HISTORY_TOKENS` | The token budget for the replayed history. Past it, the older turns are summarized. Default `2000`. |
 | `AUGMENT_SUMMARY_MAX_TOKENS` | The cap on the length of the summary. Default `400`. |
 | `API_HOST` / `API_PORT` | Where the chat API listens. Default `127.0.0.1` / `8000`. |
-| `GROQ_API_KEY` | API key for the LLM provider. The chat API will not start without it. |
-| `LLM_MODEL` | The Groq model id. Default `llama-3.3-70b-versatile`. |
-| `LLM_TEMPERATURE` | Sampling temperature. Default `0.2` - low, because the answer should follow the passages. |
-| `LLM_MAX_TOKENS` | Cap on the answer length. Default `1024`. |
-| `CHAT_TOP_K` | How many chunks to retrieve per question. Default `5`. |
-| `CHAT_HISTORY_TURNS` | How many past turns to replay to the model. Default `5`. |
-| `CHAT_QUERY_HISTORY_MESSAGES` | How many past questions to fold into the search query. Default `2`. |
-| `API_HOST` / `API_PORT` | Where the chat API listens. Default `127.0.0.1` / `8000`. |
+| `REDIS_HOST` / `REDIS_PORT` | Where the distributed memory is. Default `127.0.0.1` / `6379`. |
+| `REDIS_PASSWORD` | The password for the memory. Default `ragredis`, the same default the Docker Compose file uses. |
+| `REDIS_DB` | The Redis database number. Default `0`. |
+| `REDIS_URL` | The full connection URL. Overrides the four variables above. |
+| `CACHE_TTL_SECONDS` | How long an answer is kept in the memory. Default `3600` - one hour. |
+| `FAQ_ENABLED` | Whether the FAQ layer is on at all. Default `true`. When it is off, the exact memory still works and the questions are simply not matched by meaning. |
+| `FAQ_SIMILARITY_THRESHOLD` | The cosine similarity two questions have to reach before they are treated as the same question. Default `0.90` - deliberately high, because a false hit returns a confidently wrong answer. |
+| `FAQ_PROMOTE_ASKS` | How many times a question has to be asked before it counts as frequently asked. Default `3`. |
+| `FAQ_PROMOTE_HITS` | How many times the memory has to have served it. Default `1`. |
+| `FAQ_FRESH_SECONDS` | How long a question stays fresh. Default `86400` - a day. |
+| `FAQ_TTL_SECONDS` | How long the answer to a frequently asked question is kept. Default `86400` - a day. |
+| `FAQ_MAX_ENTRIES` | How many questions the registry keeps track of. Default `500`. The least asked are dropped first. |
 
 The free Hugging Face **Hub download** of a model does not need credits. The hosted **inference API** does - it returns HTTP 402 without a paid plan - which is why the model runs locally here.
 
@@ -288,7 +367,7 @@ The free Hugging Face **Hub download** of a model does not need credits. The hos
 2. **`src/indexing/pdf.py:11` prints the wrong thing** - `f"Number of pages: {reader.pages}"` prints the list repr, not a count. It should be `len(reader.pages)`.
 3. **`src/indexing/pdf.py:17` has an import-time side effect** - `print(extract_text_from_pdf())` runs on import. Guard with `if __name__ == "__main__":` so importing the module does not trigger extraction.
 4. **`page.extract_text()` can return `None`** for pages with no extractable text, which makes `text += page.extract_text()` raise `TypeError`. Use `page.extract_text() or ""`.
-5. **The packages must stay installed and absolute.** All six under `src/` have an `__init__.py` and are all listed in `[tool.uv.build-backend] module-name`, so `uv build` ships them. Import them by full path (`from retrieval.database import Database`). A flat import (`from database import Database`) only resolves if the module's own directory happens to be on `sys.path` - it breaks the moment the code is installed or imported from anywhere else.
+5. **The packages must stay installed and absolute.** All seven under `src/` have an `__init__.py` and are all listed in `[tool.uv.build-backend] module-name`, so `uv build` ships them. Import them by full path (`from retrieval.database import Database`). A flat import (`from database import Database`) only resolves if the module's own directory happens to be on `sys.path` - it breaks the moment the code is installed or imported from anywhere else.
 6. **`README.md` is empty.** It is the `readme` referenced by `pyproject.toml` and needs real content.
 7. **`datasource/` is gitignored** - a fresh clone has no documents. Anyone else working on this repo must supply their own files, and `SOURCE_PDF` must be updated accordingly.
 8. **The PDF layout engine corrupts text.** `pypdf` hard-wraps body text mid-sentence and injects stray spaces inside words (`Aj ax`, `larg est`, `implementa tion`, `Ju n 20 19`). The chunker re-joins wrapped lines, but the intra-word spaces are still in the extracted text and will land in chunks and embeddings. Fix at the source if the noise hurts retrieval - a custom `extraction_mode` on `PdfReader` may extract cleaner text.
@@ -300,10 +379,24 @@ The free Hugging Face **Hub download** of a model does not need credits. The hos
 14. **The API will not start without `GROQ_API_KEY`.** `GroqLlmClient` checks the key when it is built, not on the first request, so a misconfigured deployment fails loudly at startup instead of on the first question.
 15. **A conversation id is the only thing that keeps a session together.** The endpoint holds no state in memory - the client must send the same `conversation_id` for every message in a conversation, or the model starts each question from scratch.
 16. **The project name only appears in the chunk metadata, never in the chunk text.** "TruStage" is a `metadata->>'project'` value; the text of that chunk says "Trustage applications" or nothing at all. So a question naming the project does not match it in the keyword index, and the dense index has nothing to match on either. This is why a follow-up like "what was my role in the TruStage project?" can come back empty even though the chunk is right there. The fix is to search the metadata column too, or to put the project name into the embedded text.
-17. **The heredoc shell writes collapse `
-` into real newlines.** When writing a file through `uv run python - << 'PYEOF'`, a `
-` inside the payload ends up as an actual newline and breaks the string literal. Write the file with the Write tool where possible, or build the newline with `chr(92) + "n"` in the payload.
+17. **A backslash escape in a heredoc payload can collapse into the character itself.**
+When writing a file through `uv run python - << 'PYEOF'`, an escaped sequence in the payload
+can end up as the character it stands for - an escaped NUL became a NUL byte in the file, and an
+escaped newline became a real newline and broke the string literal. Write the file with the Write
+tool where possible, or build the escape in the payload with `chr(92)`.
 18. **The `api` package is transport only.** Business logic that used to live there (the prompt building, the session store, the chat service, the LLM client) now lives in `augmentation/` and `generation/`. If a rule starts appearing in `src/api/`, it belongs in one of those two.
+19. **The FAQ match is a threshold, not a rank.** The chunks are fused with RRF, but the FAQ index is not - a rank says only that one question is nearer than another, and that is not enough to serve an answer without asking the model. A similarity of `0.90` says the two questions really are the same one. The two mechanisms do different jobs and must not be confused.
+20. **Only a question that stands on its own is looked up, and only a standalone question goes into the index.** A follow-up is answered from the conversation it was asked in, so a question in other words carries none of that context - the answer to the stored question would not be the answer to this one. The test for "stands on its own" is that the retrieval query is exactly the question.
+21. **The FAQ index has its own `vector(384)` column, and it is fixed at creation time too.** `faq_questions.embedding` is a separate column from `chunks.embedding`; changing `EMBEDDING_MODEL` means recreating both. The table is created by the API at startup (`ensure_schema`), and a failure there is logged, not raised - the exact memory still works without it.
+22. **The time to live is only ever extended.** The refresh uses `expire(key, ttl, gt=True)`, so a question that has stopped being asked keeps the time it had left instead of having it cut short. Cutting it short would mean a question asked once an hour could never be a FAQ at all.
+23. **`memory` is a leaf, and `retrieval` implements the one port it owns.** `memory` imports nothing from the project. `augmentation` and `api` may import it; `retrieval` may import it for the FAQ port, and the port lives in `memory/faq.py` next to the statistics it belongs with, so `retrieval` never has to import `augmentation` back.
+24. **The memory fails open.** A Redis that is down, or a network that is down, is a miss - never an
+error. The lookup returns nothing, the write is dropped, and the chat turn carries on as if the memory
+were off. The API logs a warning at startup when the ping fails.
+25. **The cache key carries the retrieval query, not just the question.** A question that stands on its
+own always lands on the same key, so it is answered from the memory. A follow-up lands on a key of its
+own, because the earlier questions are folded into the query it is answered under. Serving a follow-up
+a stale standalone answer would be wrong.
 
 ## Open decisions
 

@@ -19,7 +19,7 @@ from psycopg.types.json import Jsonb
 from retrieval.database import Database
 
 
-def _as_vector_literal(embedding: Sequence[float]) -> str:
+def as_vector_literal(embedding: Sequence[float]) -> str:
     """Render a vector as the ``[1,2,3]`` literal pgvector parses.
 
     psycopg has no built-in adapter for the ``vector`` type, so the value is
@@ -105,7 +105,7 @@ class VectorStore:
                         "page": metadata.get("page"),
                         "end_page": metadata.get("end_page"),
                         "chunk_index": metadata.get("chunk_index"),
-                        "embedding": _as_vector_literal(embedding),
+                        "embedding": as_vector_literal(embedding),
                     },
                 )
                 row = cur.fetchone()
@@ -126,7 +126,7 @@ class VectorStore:
         rows = [
             {
                 "text": text,
-                "embedding": _as_vector_literal(embedding),
+                "embedding": as_vector_literal(embedding),
                 "metadata": Jsonb(metadata),
                 "source": metadata.get("source"),
                 "section": metadata.get("section"),
@@ -187,7 +187,7 @@ class VectorStore:
         and ``page`` to restrict the search to part of the corpus.
         """
         where, params = self._build_filters(filters)
-        params["embedding"] = _as_vector_literal(embedding)
+        params["embedding"] = as_vector_literal(embedding)
         params["limit"] = limit
 
         with self.db.connection() as conn:
