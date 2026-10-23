@@ -37,8 +37,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from api.config import ApiSettings
 from api.schemas import ChatEvent, ChatRequest, Citation, FaqEntry, Source
 from augmentation.augmenter import Augmenter
 from augmentation.chat_service import (
@@ -57,6 +59,7 @@ from memory.faq import FaqMatcher, FaqMetrics, FaqRegistry, NullFaqRegistry
 from retrieval.database import Database
 from retrieval.embedder import EmbeddingModel
 from retrieval.faq_store import NullFaqMatcher, PostgresFaqMatcher
+from retrieval.index_state import IndexState
 from retrieval.retriever import HybridRetriever
 
 logger = logging.getLogger(__name__)
@@ -82,6 +85,10 @@ class Services:
     cache: AnswerCache
     faq_matcher: FaqMatcher
     faq_metrics: FaqMetrics
+    #: The version of the indexed corpus.  It is part of the key every
+    #: answer is stored under, so a corpus that has been rebuilt since an
+    #: answer was given does not serve that answer again.
+    index_state: IndexState | None = None
 
 
 def build_services() -> Services:
@@ -105,6 +112,7 @@ def build_services() -> Services:
         if faq_settings.enabled
         else NullFaqMatcher()
     )
+    index_state = IndexState(database)
     augmenter = Augmenter(
         retriever=retriever,
         llm=llm,
@@ -120,6 +128,7 @@ def build_services() -> Services:
         faq_matcher=faq_matcher,
         faq_metrics=faq_metrics,
         faq_settings=faq_settings,
+        index_state=index_state,
     )
     return Services(
         chat_service=chat_service,
@@ -131,6 +140,7 @@ def build_services() -> Services:
         cache=answer_cache,
         faq_matcher=faq_matcher,
         faq_metrics=faq_metrics,
+        index_state=index_state,
     )
 
 
@@ -166,6 +176,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     await _ensure_faq_index(services)
+    await _ensure_index_state(services)
 
     try:
         yield
@@ -190,6 +201,18 @@ def create_app(services: Services | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.services = services if services is not None else build_services()
+
+    # A browser on another origin - the Angular development server, for
+    # one - may call the API.  The origins are named rather than a
+    # wildcard, so a page that is not the UI cannot use the API.
+    settings = ApiSettings.from_env()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_origins),
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -255,6 +278,25 @@ async def _ensure_faq_index(services: Services) -> None:
         logger.info("the frequently asked question index is ready")
     except Exception:
         logger.exception("the frequently asked question index is not available")
+
+
+async def _ensure_index_state(services: Services) -> None:
+    """Create the table that holds the version of the corpus.
+
+    Without it the version is read as zero, which still works - the
+    memory just cannot tell that the corpus has been rebuilt.  A failure
+    here is logged, not raised, for the same reason.
+    """
+    if services.index_state is None:
+        return
+
+    try:
+        import anyio.to_thread
+
+        await anyio.to_thread.run_sync(services.index_state.ensure_schema)
+        logger.info("the version of the corpus is %d", services.index_state.generation())
+    except Exception:
+        logger.exception("the version of the corpus is not available")
 
 
 def _get_services(request: Request) -> Services:

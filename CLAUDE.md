@@ -37,7 +37,7 @@ docker compose up -d redis               # start the distributed memory (Redis)
 docker compose down                      # stop it
 uv run python src/indexing/pdf.py        # run the PDF extractor
 uv run python src/indexing/chunker.py    # run the chunker (prints chunks as JSON)
-uv run python src/indexing/run_index.py --replace   # chunk -> embed -> store in PostgreSQL
+uv run python src/indexing/run_index.py --force     # chunk -> embed -> store in PostgreSQL
 uv run python src/retrieval/run_search.py "query" --mode hybrid   # hybrid (dense + keyword) search
 uv run python src/retrieval/run_search.py "query" --mode dense     # dense only
 uv run python src/retrieval/run_search.py "query" --mode sparse    # keyword only
@@ -70,6 +70,7 @@ src/retrieval/             # everything that searches the index
   text_search.py           # sparse retrieval (Postgres tsvector/tsquery)
   retriever.py             # hybrid search, fuses both indexes with RRF
   faq_store.py             # the FAQ index: the questions, searchable by meaning
+  index_state.py           # the version of the corpus, and the fingerprint of each document
   run_search.py            # CLI: query the index
 src/augmentation/         # the model's context for one turn
   config.py              # env-driven settings (how much context to gather)
@@ -166,7 +167,7 @@ Both indexes live in **one table**, `chunks`, so the dense and the sparse side a
 | `HybridRetriever` | `retrieval/retriever.py` | runs both indexes, fuses with RRF |
 | `Indexer` | `indexing/indexer.py` | the chunk -> embed -> write stage |
 
-**Dense.** Vectors are L2-normalised before they are written, so cosine distance and inner product agree, and the HNSW index is built with `vector_cosine_ops`. Search ranks by `1 - (embedding <=> query)`, so the score is a similarity where higher is better.
+**Dense.** Vectors are L2-normalised before they are written, so cosine distance and inner product agree, and the HNSW index is built with `vector_cosine_ops`. Search ranks by `1 - (embedding <=> query)`, so the score is a similarity where higher is better. A search that filters puts the session into the iterative mode of the index, so the filter cannot throw the answer away - see gotcha 29.
 
 **Sparse.** This is the standard Postgres full-text approach: a `tsvector` column computed by the server from the chunk text, a GIN index over it, and a `websearch_to_tsquery` built from the user's query. Ranking is `ts_rank_cd` (cover density), which rewards a term that appears in a tightly packed region rather than merely appearing often. Note that `websearch_to_tsquery` **ANDs** the terms - "kubernetes docker" only matches rows containing both. Use `OR` explicitly for a broader search.
 
@@ -245,6 +246,22 @@ The counters live in Redis rather than in the process, so they are shared by eve
 
 **The memory fails open.** A Redis that cannot be reached is a miss, not an error: the lookup returns nothing, the write is dropped, and the chat turn carries on as if the memory were off. The API logs a warning at startup when the ping fails. The same goes for the FAQ index: if the table cannot be built, the exact memory still works and the questions are simply not matched by meaning.
 
+### The version of the corpus - `src/retrieval/index_state.py`
+
+Every answer in the memory was built from a particular version of the corpus. When the resume is edited and indexed again, the answers built from the corpus as it was are wrong - and a wrong answer served from the memory is worse than a slow one, because it looks like an answer.
+
+The version of the corpus is a counter, and it is part of every cache key: `build_cache_key(question, query, generation)` mixes it into the digest. After a rebuild the counter is different, so **every key the memory holds is a key nobody asks for again**. The memory misses, the model is asked, and the answer is stored under the new version. The old answers are not deleted - they expire on their own time to live.
+
+The counter lives in one row of `index_state`, and the indexer moves it on (`IndexState.bump()`) as part of the write. **The write is one transaction**: the old rows of the document are removed, the new rows are written, the fingerprint of the document is recorded and the version moves on - or none of it happened. There is never a moment at which the rows of the corpus and the version that describes them disagree, so an answer can never be stored against a corpus that was never there.
+
+**The version moves on last**, after the rows are written. An answer given while the write is in flight belongs to the corpus as it was, which is still the one the rows of the moment describe.
+
+**A rebuild that changes nothing is skipped.** The fingerprint of every indexed document is kept in `indexed_documents` - a SHA-256 over the text and the metadata of all its chunks. A document whose fingerprint is unchanged is not written again, and the version does not move on: the memory keeps the answers it has, and nothing is paid for nothing. The name of the embedding model is part of the fingerprint, so a change of model writes the document again instead of skipping it - the same text under another model is another document as far as the index is concerned.
+
+**The FAQ index is versioned too.** A question in the index points at the key its answer is stored under, and that key belongs to the version the answer was built from. So `faq_questions` carries a `generation` column, and the search only looks at the questions of the current version. A question asked against an older corpus is not a match, the model is asked, and the row is rewritten with the new version - the index heals itself.
+
+**Reading the state fails open; writing it does not.** A corpus whose version cannot be read is reported as version `0`, and the memory works exactly as it did before - it just cannot tell that the corpus has changed. A version that could not be moved on, or a fingerprint that could not be recorded, is raised instead: a corpus is never written without the version that describes it, and a document is never written without the fingerprint that will stop it being written again for nothing.
+
 ### The chat API - `src/api/`
 
 Transport only. It owns the FastAPI wiring, the request/response shapes and the CLI, and no business logic.
@@ -306,6 +323,8 @@ Two things are deliberately kept off the event loop. The retriever is synchronou
 - `tests/test_augmentation.py` - the augmentation and generation steps against stand-ins: the replay window, the retrieval query, the context building, the summarization and the citation resolution. **No database, no model and no API key needed.**
 - `tests/test_memory.py` - the distributed memory against a stand-in for the Redis client: the cache key, the stored form of an answer, the time to live, and the behaviour when Redis is down. **No Redis server needed.**
 - `tests/test_faq.py` - the FAQ rule and the semantic index: what makes a question frequently asked, the tiered time to live, the counters, the eviction, and the matching against a live PostgreSQL. **These tests skip themselves** when PostgreSQL is unreachable, or when the embedding model will not load.
+- `tests/test_index_state.py` - the version of the corpus: the key it is part of, the fingerprint that skips a rebuild that changes nothing, and the state and the indexer against a live PostgreSQL, in a database of their own. **These tests skip themselves** when PostgreSQL is unreachable.
+- `tests/test_ann_filter.py` - the filtered search over the approximate index: a search that filters on a column the HNSW index does not cover still returns the rows it was asked for, and the FAQ search still finds a question of the current version of the corpus. **These tests skip themselves** when PostgreSQL is unreachable.
 - `tests/test_sessions.py` - the conversation history against a live PostgreSQL: message ordering, the history window, source storage, the summaries and session isolation. **These tests skip themselves** when PostgreSQL is unreachable.
 
 Run with `uv run python -m pytest`. The chunker tests skip themselves if `datasource/` is empty, since `datasource/` is gitignored and a fresh clone has no source PDF.
@@ -397,6 +416,31 @@ were off. The API logs a warning at startup when the ping fails.
 own always lands on the same key, so it is answered from the memory. A follow-up lands on a key of its
 own, because the earlier questions are folded into the query it is answered under. Serving a follow-up
 a stale standalone answer would be wrong.
+26. **The cache key carries the version of the corpus.** The key is `sha256(question | query | generation)`,
+so a corpus that has been rebuilt invalidates the memory without anything being deleted: the old answers
+are still in Redis, but they are under keys nobody asks for again. An answer from the corpus as it was
+is never served - which is the point, because a confidently wrong answer is worse than a slow one.
+27. **The FAQ index has to be versioned as well.** A question in the index points at the key its answer
+is stored under, so a row of an older version points at an answer of an older corpus. `faq_questions`
+carries a `generation` column and the search only looks at the current version - otherwise the semantic
+match would hand back exactly the answer the version was meant to invalidate.
+28. **A rebuild that changes nothing is skipped.** The fingerprint of a document is a SHA-256 over the
+text and the metadata of all its chunks, kept in `indexed_documents`. An unchanged document is not
+written again and the version does not move on, so the memory keeps the answers it has. Without this,
+every re-index would empty the memory for nothing.
+
+29. **A filter is applied after the approximate scan, not before it.** pgvector's HNSW scan visits a bounded
+number of tuples and the WHERE filter throws away the ones that do not match, so a search that filters on a
+column the index does not cover can come back with fewer rows than it was asked for - including none at all.
+The search session is therefore put into the iterative mode (`SET hnsw.iterative_scan = strict_order`), which
+keeps the scan going until there are enough rows that match, and keeps them in the order the distance puts
+them in. `VectorStore.search` and `PostgresFaqMatcher.match` are the two searches that filter, and both
+call `prepare_ann_search` before the query. A filter another index can answer - the source, for one -
+hides the bug entirely: the planner never reaches for the HNSW index at all, and the answer is exact.
+30. **The corpus is written in one transaction, and the version moves on last.** The rows, the fingerprint
+and the version are written together, or not at all - so there is never a moment at which the rows of the
+corpus and the version that describes them disagree. A write that cannot move the version on rolls the
+rows back with it, and nothing of the corpus is left behind.
 
 ## Open decisions
 

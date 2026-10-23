@@ -54,6 +54,7 @@ from generation.responder import AnswerEvent, Responder, TokenEvent
 from memory.cache import (
     AnswerCache,
     CachedAnswer,
+    IndexGeneration,
     NullAnswerCache,
     build_cache_key,
     build_question_key,
@@ -113,6 +114,7 @@ class ChatService:
         faq_matcher: FaqMatcher | None = None,
         faq_metrics: FaqMetrics | None = None,
         faq_settings: FaqSettings | None = None,
+        index_state: IndexGeneration | None = None,
     ) -> None:
         self.augmenter = augmenter
         self.responder = responder
@@ -122,6 +124,7 @@ class ChatService:
         self.faq_matcher = faq_matcher
         self.faq_metrics = faq_metrics or NullFaqRegistry()
         self.faq_settings = faq_settings or FaqSettings.from_env()
+        self.index_state = index_state
 
     async def stream_answer(
         self,
@@ -153,7 +156,8 @@ class ChatService:
             history,
             lookback=self.settings.query_history_messages,
         )
-        cache_key = build_cache_key(question, query)
+        generation = await self._generation()
+        cache_key = build_cache_key(question, query, generation)
         question_key = build_question_key(question)
 
         # The memory, asked with the exact question.
@@ -168,7 +172,7 @@ class ChatService:
             return
 
         # The memory, asked with the meaning of the question.
-        candidate = await self._semantic_candidate(question, query)
+        candidate = await self._semantic_candidate(question, query, generation)
         if candidate is not None:
             semantic = await self.answer_cache.get(candidate.cache_key)
             if semantic is not None:
@@ -225,16 +229,40 @@ class ChatService:
                 sources=sources,
                 citations=citations,
                 cost_ms=cost_ms,
+                generation=generation,
             )
         else:
             await self._record(question, question_key, cost_ms=cost_ms)
 
     # -- the memory --------------------------------------------------------
 
+    async def _generation(self) -> int:
+        """The version of the corpus this turn is answered from.
+
+        The version is part of the key an answer is stored under, so a
+        corpus that has been rebuilt since an answer was given is never
+        served again: the key is a different one, and the memory misses.
+        """
+        if self.index_state is None:
+            return 0
+
+        try:
+            import anyio.to_thread
+
+            return int(
+                await anyio.to_thread.run_sync(self.index_state.generation)
+            )
+        except Exception:
+            logger.warning(
+                "the version of the corpus could not be read", exc_info=True
+            )
+            return 0
+
     async def _semantic_candidate(
         self,
         question: str,
         query: str,
+        generation: int,
     ) -> FaqCandidate | None:
         """The stored question this one means the same as, if there is one.
 
@@ -242,6 +270,10 @@ class ChatService:
         is answered from the conversation it was asked in, and a question
         in other words carries none of that context, so the answer to the
         stored question would not be the answer to this one.
+
+        Only the questions of this version of the corpus are looked at:
+        an answer built from the corpus as it was is not the answer to
+        this question any more.
         """
         if self.faq_matcher is None:
             return None
@@ -253,7 +285,9 @@ class ChatService:
 
             return await anyio.to_thread.run_sync(
                 lambda: self.faq_matcher.match(
-                    question, self.faq_settings.similarity_threshold
+                    question,
+                    self.faq_settings.similarity_threshold,
+                    generation,
                 )
             )
         except Exception:
@@ -273,6 +307,7 @@ class ChatService:
         sources: list[dict[str, Any]],
         citations: list[Citation],
         cost_ms: int,
+        generation: int,
     ) -> None:
         """Keep the answer in the memory, and record what the question cost.
 
@@ -290,7 +325,7 @@ class ChatService:
             ttl_seconds=ttl,
         )
         await self._record(question, question_key, cost_ms=cost_ms)
-        await self._remember(question, question_key, cache_key, query)
+        await self._remember(question, question_key, cache_key, query, generation)
 
     async def _remember(
         self,
@@ -298,12 +333,17 @@ class ChatService:
         question_key: str,
         cache_key: str,
         query: str,
+        generation: int,
     ) -> None:
         """Put the question in the index, so the next one can be matched.
 
         Only a question that stands on its own goes in the index.  A
         follow-up is answered from the conversation it was asked in, and
         another question in other words is not that question.
+
+        The version of the corpus goes with it, so a question that was
+        asked against an older corpus is not matched against a question
+        asked against this one.
         """
         if self.faq_matcher is None:
             return
@@ -315,7 +355,7 @@ class ChatService:
 
             await anyio.to_thread.run_sync(
                 lambda: self.faq_matcher.remember(
-                    question, question_key, cache_key
+                    question, question_key, cache_key, generation
                 )
             )
         except Exception:

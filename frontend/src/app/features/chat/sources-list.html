@@ -1,0 +1,85 @@
+<div class="overflow-hidden rounded-xl border border-white/8 bg-white/[0.02]">
+  <button
+    type="button"
+    (click)="open.set(!open())"
+    class="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-white/[0.04]"
+  >
+    <svg
+      class="h-3.5 w-3.5 shrink-0 text-ink-400 transition-transform"
+      [class.rotate-90]="open()"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+    <span class="text-xs font-medium text-ink-300">Sources</span>
+    <span
+      class="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink-300"
+    >
+      {{ sources().length }}
+    </span>
+    @if (cited() > 0) {
+      <span class="text-[11px] text-brand-300/80">{{ cited() }} cited</span>
+    }
+  </button>
+
+  @if (open()) {
+    <ol class="divide-y divide-white/5 border-t border-white/5">
+      @for (source of sources(); track source.chunk_id; let index = $index) {
+        <li
+          class="passage px-3 py-2.5 transition-colors"
+          [class.is-highlighted]="highlight() === markerOf(source, index)"
+          [attr.data-source-marker]="markerOf(source, index)"
+        >
+          <div class="flex items-start gap-2.5">
+            <span
+              class="marker"
+              [class.marker-cited]="isCited(source)"
+              [class.marker-uncited]="!isCited(source)"
+            >
+              {{ markerOf(source, index) }}
+            </span>
+
+            <div class="min-w-0 flex-1">
+              @if (labelsOf(source).length > 0 || pagesOf(source) !== '') {
+                <div class="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  @for (label of labelsOf(source); track label.name) {
+                    <span class="text-[10px] uppercase tracking-wide text-ink-500">
+                      <span class="text-ink-400">{{ label.value }}</span>
+                    </span>
+                  }
+                  @if (pagesOf(source) !== '') {
+                    <span class="text-[10px] text-ink-600">{{ pagesOf(source) }}</span>
+                  }
+                  @if (scoreText(source) !== '') {
+                    <span class="text-[10px] text-ink-600">{{ scoreText(source) }}</span>
+                  }
+                </div>
+              }
+
+              <p
+                class="text-xs leading-relaxed text-ink-300"
+                [class.line-clamp-3]="!isFull(source.chunk_id)"
+              >
+                {{ source.text }}
+              </p>
+
+              <button
+                type="button"
+                (click)="toggleText(source.chunk_id)"
+                class="mt-1 text-[10px] text-ink-500 transition hover:text-brand-300"
+              >
+                {{ isFull(source.chunk_id) ? 'Show less' : 'Show more' }}
+              </button>
+            </div>
+          </div>
+        </li>
+      }
+    </ol>
+  }
+</div>

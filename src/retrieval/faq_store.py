@@ -9,8 +9,9 @@ recognised as one that has been answered before.
 The index is a second, much smaller table beside the chunks, and it uses
 the same machinery - a ``vector`` column, an HNSW index and the same
 sentence-transformer - because it is the same job on a smaller corpus.  A
-row holds the question, the key the question is tracked under, and the key
-its answer is stored under in the memory.
+row holds the question, the key the question is tracked under, the key
+its answer is stored under in the memory, and the version of the corpus
+the answer was built from.
 
 Searching it is the same search the retriever does, with one difference
 that matters: the score is compared against a threshold rather than
@@ -28,7 +29,7 @@ from memory.config import FaqSettings
 from memory.faq import FaqCandidate
 from retrieval.database import Database
 from retrieval.embedder import EmbeddingModel
-from retrieval.vector_store import as_vector_literal
+from retrieval.vector_store import as_vector_literal, prepare_ann_search
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS faq_questions (
     question     TEXT NOT NULL,
     question_key TEXT NOT NULL,
     cache_key    TEXT NOT NULL,
+    generation   BIGINT NOT NULL DEFAULT 0,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -112,6 +114,10 @@ class PostgresFaqMatcher:
                     "vector(" + str(dimension) + ")"
                 )
                 cur.execute(
+                    "ALTER TABLE faq_questions ADD COLUMN IF NOT EXISTS "
+                    "generation BIGINT NOT NULL DEFAULT 0"
+                )
+                cur.execute(
                     """
                     CREATE INDEX IF NOT EXISTS faq_questions_embedding_hnsw_idx
                     ON faq_questions USING hnsw (embedding vector_cosine_ops)
@@ -120,12 +126,23 @@ class PostgresFaqMatcher:
 
     # -- writing -----------------------------------------------------------
 
-    def remember(self, question: str, question_key: str, cache_key: str) -> None:
+    def remember(
+        self,
+        question: str,
+        question_key: str,
+        cache_key: str,
+        generation: int = 0,
+    ) -> None:
         """Remember a question, so the next one can be matched against it.
 
         The same question asked again updates the one row rather than
         adding another, and the row is given the key its answer is
         stored under, so a match leads straight to the answer.
+
+        The generation is the version of the corpus the answer was built
+        from.  A question that was asked against an older corpus is not
+        a match for a question asked against this one, so it is kept
+        apart.
         """
         embedding = self.embedder.embed_one(question)
         with self.db.connection() as conn:
@@ -133,15 +150,16 @@ class PostgresFaqMatcher:
                 cur.execute(
                     """
                     INSERT INTO faq_questions (
-                        question, question_key, cache_key, embedding
+                        question, question_key, cache_key, generation, embedding
                     )
                     VALUES (
                         %(question)s, %(question_key)s, %(cache_key)s,
-                        %(embedding)s::vector
+                        %(generation)s, %(embedding)s::vector
                     )
                     ON CONFLICT (question_key) DO UPDATE SET
                         question   = EXCLUDED.question,
                         cache_key  = EXCLUDED.cache_key,
+                        generation = EXCLUDED.generation,
                         embedding  = EXCLUDED.embedding,
                         updated_at = now()
                     """,
@@ -149,6 +167,7 @@ class PostgresFaqMatcher:
                         "question": question,
                         "question_key": question_key,
                         "cache_key": cache_key,
+                        "generation": int(generation),
                         "embedding": as_vector_literal(embedding),
                     },
                 )
@@ -159,28 +178,44 @@ class PostgresFaqMatcher:
 
     # -- reading -----------------------------------------------------------
 
-    def match(self, question: str, threshold: float) -> FaqCandidate | None:
+    def match(
+        self,
+        question: str,
+        threshold: float,
+        generation: int = 0,
+    ) -> FaqCandidate | None:
         """The stored question this one means the same as, if there is one.
 
         The nearest question is only returned when it is at least
         ``threshold`` close.  Below that the two questions are merely
         about the same thing, and answering one with the other would be
         a guess.
+
+        Only the questions of the given version of the corpus are
+        looked at.  A question that was asked against an older corpus
+        has an answer that is no longer right, so it is not a match.
+
+        The search filters on the version of the corpus, and a filter is
+        applied after the approximate scan - so the session is put into the
+        mode that keeps going until there are enough rows that match.
         """
         embedding = self.embedder.embed_one(question)
         with self.db.connection() as conn:
             with conn.cursor() as cur:
+                prepare_ann_search(cur)
                 cur.execute(
                     """
                     SELECT question, question_key, cache_key,
                            1 - (embedding <=> %(embedding)s::vector) AS similarity
                     FROM faq_questions
                     WHERE embedding IS NOT NULL
+                      AND generation = %(generation)s
                     ORDER BY embedding <=> %(embedding)s::vector
                     LIMIT %(limit)s
                     """,
                     {
                         "embedding": as_vector_literal(embedding),
+                        "generation": int(generation),
                         "limit": CANDIDATE_LIMIT,
                     },
                 )
@@ -242,10 +277,21 @@ class NullFaqMatcher:
     def ensure_schema(self) -> None:
         return None
 
-    def match(self, question: str, threshold: float) -> FaqCandidate | None:
+    def match(
+        self,
+        question: str,
+        threshold: float,
+        generation: int = 0,
+    ) -> FaqCandidate | None:
         return None
 
-    def remember(self, question: str, question_key: str, cache_key: str) -> None:
+    def remember(
+        self,
+        question: str,
+        question_key: str,
+        cache_key: str,
+        generation: int = 0,
+    ) -> None:
         return None
 
     def prune(self) -> int:

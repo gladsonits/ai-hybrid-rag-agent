@@ -523,3 +523,14 @@ def test_the_same_question_is_remembered_once(
     assert candidate is not None
     assert candidate.cache_key == "second-key"
     assert matcher.count() == 1
+
+
+def test_a_question_of_an_older_corpus_is_not_a_match(
+    matcher: PostgresFaqMatcher,
+) -> None:
+    """A question asked against an older corpus is not a match."""
+    key = build_question_key(STORED_QUESTION)
+    matcher.remember(STORED_QUESTION, key, "cache-key", 1)
+
+    assert matcher.match(PARAPHRASE, 0.9, 1) is not None
+    assert matcher.match(PARAPHRASE, 0.9, 2) is None

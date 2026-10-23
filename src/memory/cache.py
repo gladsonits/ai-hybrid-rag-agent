@@ -63,6 +63,20 @@ class CachedAnswer:
         )
 
 
+class IndexGeneration(Protocol):
+    """Where the version of the indexed corpus is read from.
+
+    The corpus is versioned so that an answer built from an older
+    version of it is never served again.  The interface is synchronous
+    and blocking, like the FAQ matcher - the caller runs it in a worker
+    thread.
+    """
+
+    def generation(self) -> int:
+        """The current version of the corpus."""
+        ...
+
+
 class AnswerCache(Protocol):
     """Where an answer is looked up, and where it is stored."""
 
@@ -231,16 +245,30 @@ def build_question_key(question: str) -> str:
     ).hexdigest()
 
 
-def build_cache_key(question: str, context: str = "") -> str:
+def build_cache_key(
+    question: str,
+    context: str = "",
+    generation: int = 0,
+) -> str:
     """The key an answer is stored under.
 
     The question is normalized, so a difference in case or in spacing
     does not make a new key.  The context is mixed in as well: the same
     question asked in a different conversation is a different question,
     and the answer to it would be different too.
+
+    The **generation** is the version of the corpus the answer was built
+    from, and it is part of the key.  That is what makes a rebuild of
+    the corpus invalidate the memory: an answer from the corpus as it
+    was is simply never asked for again, because the key it is stored
+    under is not the key the question produces any more.  The memory
+    misses, the question is answered afresh, and the old answer expires
+    on its own time to live.
     """
     digest = hashlib.sha256()
     digest.update(normalize_question(question).encode("utf-8"))
     digest.update(b"|")
     digest.update(context.strip().encode("utf-8"))
+    digest.update(b"|")
+    digest.update(str(int(generation)).encode("utf-8"))
     return f"{CACHE_NAMESPACE}:{digest.hexdigest()}"

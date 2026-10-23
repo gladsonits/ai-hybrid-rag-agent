@@ -183,17 +183,36 @@ class FakeMatcher:
     def __init__(self) -> None:
         self.matches: dict[str, FaqCandidate] = {}
         self.remembered: list[tuple[str, str, str]] = []
+        self.remembered_generations: list[int] = []
         self.searches: list[str] = []
+        self.searched_generations: list[int] = []
+        self.stored_generations: dict[str, int] = {}
 
-    def match(self, question: str, threshold: float) -> FaqCandidate | None:
+    def match(
+        self,
+        question: str,
+        threshold: float,
+        generation: int = 0,
+    ) -> FaqCandidate | None:
         self.searches.append(question)
+        self.searched_generations.append(generation)
         candidate = self.matches.get(question)
         if candidate is None or candidate.similarity < threshold:
             return None
+        if self.stored_generations.get(candidate.question, generation) != generation:
+            return None
         return candidate
 
-    def remember(self, question: str, question_key: str, cache_key: str) -> None:
+    def remember(
+        self,
+        question: str,
+        question_key: str,
+        cache_key: str,
+        generation: int = 0,
+    ) -> None:
         self.remembered.append((question, question_key, cache_key))
+        self.stored_generations[question] = generation
+        self.remembered_generations.append(generation)
 
     def ensure_schema(self) -> None:
         """No schema to create."""
@@ -245,6 +264,20 @@ class FakeMetrics:
         return None
 
 
+class FakeIndexState:
+    """A stand-in for the version of the corpus.
+
+    ``generation`` is the version of the corpus the answers are built
+    from.  Changing it is what a rebuild of the corpus does.
+    """
+
+    def __init__(self, generation: int = 1) -> None:
+        self.current = generation
+
+    def generation(self) -> int:
+        return self.current
+
+
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
@@ -266,6 +299,7 @@ def _services(
     cache: FakeCache | None = None,
     matcher: FakeMatcher | None = None,
     metrics: FakeMetrics | None = None,
+    index_state: FakeIndexState | None = None,
 ) -> Services:
     """Build a Services object backed entirely by stand-ins."""
     retriever = retriever or FakeRetriever([_chunk()])
@@ -295,6 +329,7 @@ def _services(
         settings=settings,
         faq_matcher=matcher,
         faq_metrics=metrics,
+        index_state=index_state,
     )
     return Services(
         chat_service=chat_service,
@@ -306,6 +341,7 @@ def _services(
         cache=cache,
         faq_matcher=matcher,
         faq_metrics=metrics,
+        index_state=index_state,  # type: ignore[arg-type]
     )
 
 
@@ -681,3 +717,74 @@ def test_the_frequently_asked_questions_are_listed() -> None:
     assert body["faqs"][0]["misses"] == 1
     assert body["faqs"][0]["hit_rate"] == 0.8
     assert body["faqs"][0]["saved_ms"] == 9000
+
+
+def test_a_rebuilt_corpus_invalidates_the_answer() -> None:
+    """An answer built from the corpus as it was is not served again."""
+    state = FakeIndexState(1)
+    services = _services(index_state=state)
+    client = _client(services)
+
+    _ask(client, "What projects did Rose work on?", "s1")
+    assert services.llm.calls == 1
+
+    # The corpus is rebuilt, so the version moves on.
+    state.current = 2
+    events = _ask(client, "What projects did Rose work on?", "s2")
+
+    assert events[0]["cache_hit"] is False
+    assert services.llm.calls == 2
+
+
+def test_the_answer_is_stored_under_the_key_of_its_version() -> None:
+    """The version of the corpus is part of the key the answer is under."""
+    state = FakeIndexState(7)
+    services = _services(index_state=state)
+    client = _client(services)
+
+    question = "What projects did Rose work on?"
+    _ask(client, question, "s1")
+
+    query = build_retrieval_query(question, [], lookback=2)
+    assert build_cache_key(question, query, 7) in services.cache.store
+
+
+def test_the_index_holds_the_questions_of_the_current_corpus() -> None:
+    """The version of the corpus goes into the index with the question."""
+    state = FakeIndexState(1)
+    matcher = FakeMatcher()
+    services = _services(matcher=matcher, index_state=state)
+    client = _client(services)
+
+    _ask(client, "What projects did Rose work on?", "s1")
+
+    assert matcher.remembered_generations == [1]
+    assert matcher.searched_generations == [1]
+
+
+def test_a_question_of_an_older_corpus_is_not_matched() -> None:
+    """A question asked against the old corpus is asked afresh."""
+    state = FakeIndexState(1)
+    matcher = FakeMatcher()
+    services = _services(matcher=matcher, index_state=state)
+    client = _client(services)
+
+    question = "What projects did Rose work on?"
+    _ask(client, question, "s1")
+    old_key = matcher.remembered[0][2]
+
+    # The corpus is rebuilt, and the question is asked in other words.
+    state.current = 2
+    matcher.matches["Which projects was Rose involved in?"] = FaqCandidate(
+        question=question,
+        question_key=build_question_key(question),
+        cache_key=old_key,
+        similarity=0.95,
+    )
+    events = _ask(client, "Which projects was Rose involved in?", "s2")
+
+    assert events[0]["cache_hit"] is False
+    assert services.llm.calls == 2
+    # and the index is given the key of the new version.
+    assert matcher.remembered[-1][2] != old_key
+    assert matcher.remembered_generations[-1] == 2

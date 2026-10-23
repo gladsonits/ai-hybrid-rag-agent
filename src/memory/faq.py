@@ -134,12 +134,33 @@ class FaqCandidate:
 class FaqMatcher(Protocol):
     """Finds the stored question that a new question means the same as."""
 
-    def match(self, question: str, threshold: float) -> FaqCandidate | None:
-        """The stored question this one means the same as, if there is one."""
+    def match(
+        self,
+        question: str,
+        threshold: float,
+        generation: int = 0,
+    ) -> FaqCandidate | None:
+        """The stored question this one means the same as, if there is one.
+
+        Only the questions of the given version of the corpus are looked
+        at: an answer built from the corpus as it was is not an answer to
+        the question any more.
+        """
         ...
 
-    def remember(self, question: str, question_key: str, cache_key: str) -> None:
-        """Remember a question, so the next one can be matched against it."""
+    def remember(
+        self,
+        question: str,
+        question_key: str,
+        cache_key: str,
+        generation: int = 0,
+    ) -> None:
+        """Remember a question, so the next one can be matched against it.
+
+        The generation is the version of the corpus the answer was built
+        from, and it is what tells a stored question apart from one that
+        was asked against an older version.
+        """
         ...
 
 

@@ -1,0 +1,56 @@
+<form
+  (submit)="$event.preventDefault(); submit()"
+  class="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-2 backdrop-blur transition focus-within:border-brand-400/50 focus-within:bg-white/[0.06]"
+>
+  <textarea
+    #field
+    rows="1"
+    [value]="text()"
+    (input)="onInput($event)"
+    (keydown)="onKeydown($event)"
+    placeholder="Ask about the resume — projects, roles, tools, experience…"
+    aria-label="Your question"
+    class="max-h-[200px] flex-1 resize-none bg-transparent px-2.5 py-2 text-sm leading-relaxed text-ink-100 placeholder:text-ink-500 focus:outline-none"
+  ></textarea>
+
+  @if (busy()) {
+    <button
+      type="button"
+      (click)="stop.emit()"
+      class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-200 transition hover:bg-rose-500/25"
+      aria-label="Stop the answer"
+      title="Stop"
+    >
+      <svg
+        class="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+      </svg>
+    </button>
+  } @else {
+    <button
+      type="submit"
+      [disabled]="text().trim() === ''"
+      class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-300 hover:to-brand-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
+      aria-label="Ask the question"
+      title="Ask"
+    >
+      <svg
+        class="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 19V5" />
+        <path d="m5 12 7-7 7 7" />
+      </svg>
+    </button>
+  }
+</form>

@@ -1,0 +1,90 @@
+@if (open()) {
+  <div class="fixed inset-0 z-40">
+    <button
+      type="button"
+      (click)="close()"
+      class="absolute inset-0 h-full w-full cursor-default bg-ink-950/70 backdrop-blur-sm"
+      aria-label="Close the list of frequently asked questions"
+    ></button>
+
+    <aside
+      class="absolute inset-y-0 right-0 flex w-full max-w-sm animate-slide-in flex-col border-l border-white/10 bg-ink-900/95 shadow-2xl backdrop-blur-xl"
+    >
+      <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-white">Frequently asked</h2>
+          <p class="mt-0.5 text-xs text-ink-400">
+            The questions the memory has learned to answer on its own
+          </p>
+        </div>
+        <button
+          type="button"
+          (click)="close()"
+          class="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-ink-300 transition hover:bg-white/10 hover:text-white"
+          aria-label="Close"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto px-3 py-3">
+        @if (loading()) {
+          <div class="space-y-2">
+            @for (row of [1, 2, 3]; track row) {
+              <div
+                class="h-16 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]"
+              ></div>
+            }
+          </div>
+        } @else if (failed()) {
+          <p class="px-2 py-8 text-center text-sm text-ink-400">
+            The list could not be read. The API may be down.
+          </p>
+        } @else if ((faqs() ?? []).length === 0) {
+          <p class="px-2 py-8 text-center text-sm text-ink-400">
+            No question has been asked often enough yet.
+          </p>
+        } @else {
+          <ul class="space-y-2">
+            @for (faq of faqs(); track faq.question) {
+              <li
+                class="rounded-xl border border-white/8 bg-white/[0.03] p-3 transition hover:border-brand-400/30 hover:bg-brand-500/[0.07]"
+              >
+                <button
+                  type="button"
+                  (click)="askQuestion(faq.question)"
+                  class="block w-full text-left text-sm leading-snug text-ink-100 transition hover:text-white"
+                >
+                  {{ faq.question }}
+                </button>
+
+                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-500">
+                  <span>
+                    <span class="font-semibold text-ink-300">{{ faq.asks }}</span> asked
+                  </span>
+                  <span>
+                    <span class="font-semibold text-emerald-300/90">{{ faq.hits }}</span> from
+                    memory
+                  </span>
+                  <span>{{ (faq.hit_rate * 100).toFixed(0) }}% hit rate</span>
+                  <span class="text-emerald-300/70">saved {{ faq.saved_ms }}ms</span>
+                  <span class="ml-auto">{{ ago(faq.last_asked_at) }}</span>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </aside>
+  </div>
+}

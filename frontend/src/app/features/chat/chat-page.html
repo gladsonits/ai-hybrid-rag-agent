@@ -1,0 +1,162 @@
+<div class="relative flex h-dvh flex-col">
+  <!-- The light behind the page. -->
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div
+      class="absolute -top-48 -left-40 h-[34rem] w-[34rem] rounded-full bg-brand-600/20 blur-[120px]"
+    ></div>
+    <div
+      class="absolute top-1/4 -right-48 h-[30rem] w-[30rem] rounded-full bg-sky-500/10 blur-[120px]"
+    ></div>
+    <div
+      class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(117,73,255,0.08),transparent_55%)]"
+    ></div>
+  </div>
+
+  <!-- The bar across the top. -->
+  <header
+    class="z-30 border-b border-white/5 bg-ink-950/70 backdrop-blur-xl supports-[backdrop-filter]:bg-ink-950/50"
+  >
+    <div class="mx-auto flex h-16 max-w-4xl items-center gap-3 px-4">
+      <div
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-600/25"
+      >
+        <svg
+          class="h-5 w-5 text-white"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 3v3" />
+          <path d="M12 18v3" />
+          <path d="M3 12h3" />
+          <path d="M18 12h3" />
+          <path d="M5.6 5.6l2.1 2.1" />
+          <path d="M16.3 16.3l2.1 2.1" />
+          <path d="M18.4 5.6l-2.1 2.1" />
+          <path d="M7.7 16.3l-2.1 2.1" />
+          <circle cx="12" cy="12" r="3.2" />
+        </svg>
+      </div>
+
+      <div class="min-w-0 flex-1">
+        <h1 class="truncate text-sm font-semibold tracking-tight text-white">
+          AI Hybrid RAG
+        </h1>
+        <p class="truncate text-xs text-ink-400">Answers grounded in the indexed passages</p>
+      </div>
+
+      <div
+        class="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-ink-300 sm:flex"
+      >
+        @if (apiOnline() === true) {
+          <span class="relative flex h-2 w-2">
+            <span
+              class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"
+            ></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+          </span>
+          <span>API online</span>
+        } @else if (apiOnline() === false) {
+          <span class="h-2 w-2 rounded-full bg-rose-400"></span>
+          <span>API offline</span>
+        } @else {
+          <span class="h-2 w-2 rounded-full bg-ink-500"></span>
+          <span>Checking…</span>
+        }
+      </div>
+
+      <button
+        type="button"
+        (click)="faqOpen.set(true)"
+        class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+      >
+        FAQs
+      </button>
+
+      <button
+        type="button"
+        (click)="newConversation()"
+        class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+      >
+        New chat
+      </button>
+    </div>
+  </header>
+
+  <!-- The conversation. -->
+  <main #scroller (scroll)="onScroll()" class="flex-1 overflow-y-auto overscroll-contain">
+    <div class="mx-auto max-w-3xl px-4 py-8">
+      @if (messages().length === 0) {
+        <section class="animate-fade-up flex flex-col items-center pt-10 text-center">
+          <div
+            class="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-brand-500/20 to-sky-500/10"
+          >
+            <svg
+              class="h-7 w-7 text-brand-300"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+
+          <h2 class="mt-5 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            Ask about the
+            <span
+              class="bg-gradient-to-r from-brand-300 via-brand-400 to-sky-300 bg-clip-text text-transparent"
+              >indexed corpus</span
+            >
+          </h2>
+          <p class="mt-3 max-w-md text-sm leading-relaxed text-ink-400">
+            Every answer is grounded in the passages that were retrieved, and comes back with
+            the sources it was built from.
+          </p>
+
+          <div class="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+            @for (suggestion of suggestions; track suggestion) {
+              <button
+                type="button"
+                (click)="send(suggestion)"
+                class="group rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm text-ink-300 transition hover:border-brand-400/40 hover:bg-brand-500/10 hover:text-white"
+              >
+                {{ suggestion }}
+              </button>
+            }
+          </div>
+        </section>
+      } @else {
+        <div class="space-y-6">
+          @for (message of messages(); track message.id) {
+            <app-message-bubble [message]="message" />
+          }
+        </div>
+      }
+    </div>
+  </main>
+
+  <!-- The composer. -->
+  <footer class="z-20 border-t border-white/5 bg-ink-950/80 backdrop-blur-xl">
+    <div class="mx-auto max-w-3xl px-4 py-3">
+      <app-composer [busy]="busy()" (send)="send($event)" (stop)="stop()" />
+      <p class="mt-2 text-center text-[11px] text-ink-500">
+        Enter to send · Shift + Enter for a new line · conversation
+        <span class="font-mono text-ink-600">{{ conversationId().slice(0, 8) }}</span>
+      </p>
+    </div>
+  </footer>
+</div>
+
+<app-faq-drawer
+  [open]="faqOpen()"
+  (closed)="faqOpen.set(false)"
+  (ask)="faqOpen.set(false); send($event)"
+/>

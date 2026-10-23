@@ -1,0 +1,33 @@
+:host {
+  display: block;
+}
+
+/* The number the model cites a passage by. */
+.marker {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.125rem;
+  border-radius: 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.marker-cited {
+  background-color: var(--color-brand-500);
+  color: #fff;
+}
+
+.marker-uncited {
+  background-color: rgb(255 255 255 / 0.08);
+  color: var(--color-ink-400);
+}
+
+/* The passage a citation marker points at. */
+.passage.is-highlighted {
+  background-color: rgb(117 73 255 / 0.12);
+  box-shadow: inset 2px 0 0 var(--color-brand-400);
+}
