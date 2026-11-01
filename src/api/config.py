@@ -18,7 +18,7 @@ load_dotenv()
 
 #: The origins the API answers a browser from when nothing else is set.
 #: The Angular development server is the one that matters.
-DEFAULT_CORS_ORIGINS = "http://localhost:4201, http://localhost:4200, httpL://127.0.0.1:*"
+DEFAULT_CORS_ORIGINS = "http://localhost:4201, http://localhost:4200"
 
 
 @dataclass(frozen=True, slots=True)

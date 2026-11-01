@@ -38,7 +38,7 @@ class AugmentationSettings:
     @classmethod
     def from_env(cls) -> "AugmentationSettings":
         return cls(
-            top_k=int(os.getenv("AUGMENT_TOP_K", "5")),
+            top_k=int(os.getenv("AUGMENT_TOP_K", "20")),
             history_turns=int(os.getenv("AUGMENT_HISTORY_TURNS", "5")),
             query_history_messages=int(
                 os.getenv("AUGMENT_QUERY_HISTORY_MESSAGES", "2")

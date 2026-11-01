@@ -1,0 +1,327 @@
+Page 1 of 6 
+ 
+ 
+  
+Rose Gladson AG 
+PH: +1 (732) 372-3475 
+Email: gladson.bits@gmail.com LinkedIn: rose-gladson-ag 
+ 
+SUMMARY:                                                           
+● Highly skilled and result-oriented Lead Software Engineer with 14+ years of experience in Requirement Analysis, 
+Architecture, Development, DevOps, and Production Support, specializing in AI -driven solutions and cloud-native 
+application development. 
+● Certified – Microsoft Azure Fundamentals (AZ-900), Microsoft Azure Developer (AZ-204), GitHub Copilot – Code 
+Assistant, IBM WatsonX – Gen AI Essentials and Claude Code in Action. 
+● Advanced experience in developing Web and Client/Server Applications, RESTful API services and Desktop applications 
+based on Microsoft .NET Technologies and expertise in implementing N -Tier Architecture. 
+● Worked on Automobile, Digital Marketing, Health Care, Tax and Advisory, Finance and Banking domain-based projects. 
+● Expert in designing and developing web applications using MVC, ASP.NET, ASP .NET Core, C#,  TypeScript, ADO.NET, 
+Entity Framework, LINQ, RESTful Apis, Web Services, AJAX and IIS. 
+● Experience in full stack development with Dot Net Core + Azure Cloud SAAS and PAAS services + React. 
+● Hands on experience in containerized application development with Docker and deployment to  Azure Kubernetes (AKS) 
+OpenShift. 
+● Extensive front end and backend development experience working with .NET 8 and .Net Framework 4.0/4.6/4.8, Visual 
+Studio 2013/2015/2017/2019/2022 and JQuery, Bootstrap, JavaScript and React 17/18 and Redux and Context API for state. 
+● Have hands on project experience followed on SOLID principles and Lazy Loading, Repository and CQRS design patterns. 
+● Expertise in working with Graphical User Interface GUI web development using technologies like React, Asp.Net MVC 
+cshtml pages, Master Pages, AJAX Controls, jQuery, HTML, CSS, Bootstrap. 
+● Working experience with Azure cloud services PAAS & SAAS. 
+● Extensive experience with relational databases like SQL Server 2022/2019, MySQL and Oracle 11g. 
+● Work experience on Microsoft Azure Cloud services such as Azure Active Directory, Azure Blob Storage, Azure Data 
+Factory, Databricks, Azure Service Bus, Azure Logic Apps, Key Vault, Azure Redis Cache, Azure Functions, Azure Event Hubs, 
+Azure Cosmos DB and Web Jobs creating resource groups, subscriptions, build definitions and release definitions.  
+● Experience in working with Language Integrated Query LINQ especially LINQ to object and LINQ to SQL. 
+● Good working experience with ADO.NET and Entity Framework as a part of accessing and updating the database.  
+● Involved in development of projects for Extract, Transform and Load (ETL) of data using Azure Data Factory pipelines. 
+● Good experience with development methodologies like Agile SCRUM, Waterfall and Test -driven development. 
+● Experience in creating Git Repos, Branch Policies, CI/CD development of pipelines with GitHub Actions and Azure 
+DevOps and deployment in dedicated on-premise servers and Azure Web Applications. 
+● Defined and enforced branching and deployment strategies (using Git/Azure DevOps), ensuring consistent workflow 
+and smooth coordination during user story implementation and multi -environment deployments. 
+● Experience as a Team Lead leading a team of 8 developers in achieving the quality and standard of deliverables. 
+ 
+ 
+TECHNICAL SKILLS: 
+● AI Tools: Microsoft Co-Pilot, Claude Code, IBM WatsonX Assistants. 
+● Primary Skills: .NET 8, React 17, React Router V6, Microsoft Azure Cloud Services, C#, TypeScript, ASP. Net Web API, 
+MVC, .Net Core, Asp .Net Core, DevOps – GitHub Actions & Azure DevOps, Docker, OpenShift. 
+● Secondary Skills: Microsoft SQL Server, ADO.Net, Web services, Windows service, XML, JavaScript, Aj ax, DevExpress, 
+CSS, HTML, XML, JQuery, Node JS and TypeScript. 
+● Configuration Management Tool: Azure DevOps, GitHub, TFS, Visual Source Safe 
+● Project Management Tool: JIRA, Azure DevOps 
+● RDBMS: Microsoft SQL Server 2022, Oracle11G, MySQL and MariaDB 
+● Data Access Libraries: ADO.NET, Entity Framework, Sequelize ORM 
+● Report Tool: Visual Studio Reports and DevExpress Xtra Reports. 
+● OS: Microsoft Windows Family, Linux 
+● Testing Automation Frameworks: XUnit with Moq Mocking Framework. 
+● Security Scans: VeraCode, Fortify (SAST) and CONTRAST (IAST) Page 2 of 6 
+ 
+● Dev Tools: SonarQube in GitHub Actions, ReSharper, Fiddler, Swagger, Log4net, Postman, EdrawMax, Azure Storage 
+Explorer, SSMS and Figma. 
+ 
+EDUCATIONAL QUALIFICATION: 
+• Masters in Computer Applications from Indira Gandhi National Open University, New Delhi, India.  
+• Bachelors in Computer Applications from Indira Gandhi National Open University, New Delhi, India. 
+ 
+CERTIFICATIONS: 
+• Microsoft Certified: Azure Fundamentals 
+• Microsoft Certified: Azure Developer Associate  
+• Microsoft GitHub CoPilot: Code Assistant for BMW 
+• IBM Watsonx – Gen AI Essentials 
+• Anthropic Claude Code in Action  
+ 
+PROFESSIONAL EXPERIENCE: 
+ 
+Project: TruStage, USA                      Jul 2025- Till Date 
+Role: Cloud Engineer with AI Capabilities 
+Contributed to the modernization of Trustage applications by integrating AI-driven solutions, including GenAI-powered chat 
+assistants, enhancing user experience through modern Single Page Applications (SPA), and enabling electronic communication 
+channels. Also supported integration with Trustpilot to improve customer feedback visibility and engagement.  
+ 
+Responsibilities: 
+▪ Designed and implemented GenAI-powered chat assistants to enhance customer support for financial and insurance 
+applications. 
+▪ Built Agentic AI systems with Azure Open AI to help customers plan an Insurance Policy 
+▪ Built and deployed cloud -native APIs using .NET 8 hosted on Azure Functions and App Services to support scalable 
+backend operations. 
+▪ Integrated Azure API Management (APIM) for secure API exposure, rate limiting, and token -based authentication 
+mechanisms. 
+▪ Developed and optimized Single Page Applications (SPA) to deliver a modern, responsive user experience across web 
+platforms. 
+▪ Implemented JWT-based authentication and token caching strategies to improve performance  and reduce redundant 
+token generation.  
+▪ Configured Azure Application Gateway policies and route-based traffic flows to various function apps based on 
+endpoint routes. 
+▪ Implemented CI/CD pipeline tools for scheduled Veracode scans, import flaws into ADO boa rd, build, test, deploy 
+application code to Azure cloud resources. 
+▪ Leveraged Azure Key Vault for secure management of secrets, service account credentials, and configuration data.   
+▪ Enabled electronic communication channels (email/SMS integrations) to strea mline customer notifications and 
+engagement workflows. 
+• Integrated Trustpilot APIs to surface real-time customer feedback and ratings within the application ecosystem.  
+• Collaborated with cross-functional teams to modernize legacy systems into cloud-based, AI-enabled solutions, 
+improving overall system efficiency and user engagement. 
+ 
+Environment: .NET 8, React 17, Python, TypeScript, Azure Service Bus, Azure Function Apps, Azure APIM, Application Gateway, 
+MSSQL 2022, Veracode scanning, CI/CD pipeline. 
+ 
+Project: BMW, USA/India                      FEB 2024- May 2025 
+Role: Senior .NET Consultant 
+BMW has multiple outlets for sales and services of their cars and motorcycles in various regions of the United States. The project 
+involves upgrading the application from ASP.NET to the latest .NET 8 framework and integrating React 17 to implement 
+enhanced features and improve the user interface for dealers and business users. The services include many operations related 
+to pre-sales, sales and bonus calculation for the dealers of BMW vehicles.  
+ 
+Responsibilities: 
+▪ Development of impactful application features that are designed for the billing of vehicles and discounts to the 
+companies and individual buyers. 
+▪ Integrated the application with source systems for retrieving and  processing of the source BMW model vehicles and 
+real vehicles involving data imports from flat files to SQL Server database using Scheduled .NET Jobs in Windows. Page 3 of 6 
+ 
+▪ Developed .NET Core Web APIs based on BMW business requirements and specifications. 
+▪ Worked with advanced concepts of .NET MVC Core such as Models , Middleware, Filters and Distributed Caching  used 
+for developing backend technology. 
+▪ Worked on Single Page Application for dealers to create applications with React 17 + SQL + .NET 8  and TypeScript. 
+▪ Hands on experience in development of centralized state management in react apps with Redux.  
+▪ Handled entire migration efforts of manual deployment to CI/CD pipelines development and deployment with GitHub 
+Actions that overall reduced manual deployment efforts to 90% within the team.  
+▪ Led the migration of the source repositories from BitBucket to GitHub.  
+▪ Involved in Efforts and Estimation of the user stories, user requirements, designing, and developing web applications. 
+▪ Involved in writing Automated Test Cases using test framework - X-Unit. 
+▪ Involved in Review meetings for reviewing the code and  ensuring the standard of code by other developers within the 
+team. 
+▪ Deployed web application to IIS and Monitored with Contrast IAST scans. 
+▪ Integrated GitHub Actions with Fortify SAST scans and fixed all Critical and High priority vulnerabilities to maintain 
+quality of the applications. 
+▪ Actively participate in the client meetings with BMW business and BMW IT to document the requirements in product 
+depot JIRA confluence pages. 
+• Used Azure components like Service Bus to implement a communication system between mutually interacting software 
+applications and read/write Message Queues and used Azure Logic Apps actions to send mail to business when daily 
+monitoring failed. 
+• Worked closely with BMW IT and business users in continuous running of software applications and services  and 
+collaborated with other architects and developers to deliver the highest quality solutions.  
+ 
+Environment: .NET 8, React 17, TypeScript, Azure Service Bus, Azure Logic Apps, HTML, CSS, JavaScript, JQuery, Bootstrap, 
+Asp.net Core, C#.Net, .Net Core, SQL Server 2019/2022, Git Hub Actions, IIS, SAST, IAST scans, SonarQube code scanning, 
+Powershell copy over SSH. 
+ 
+ 
+District Marketplace: (Danske Bank, India)                 Aug 2022 to Jan 2024 
+Role: Senior .NET Consultant 
+Danske Bank is a Danish multinational banking and financial services corporation. Headquartered in Copenhagen, it is the larg est 
+bank in Denmark and a major retail bank in the northern European region with over 5 million retail customers. District 
+Marketplace is an e-banking solution that offers banking products and services to the business corporate customers.  
+ 
+It is the complete migration of the services from Node Js to .NET core and implementa tion of new features for District Market 
+Place. 
+ 
+Responsibilities: 
+▪ Worked on business requirements, change requests, product features implementation, bug fixes, product deployments 
+into OpenShift Containers with tech stack such as Asp.Net Core Web Apis, React and NodeJs. 
+▪ Involved heavily in complete migration of NodeJs services to Asp.Net Core Apis. 
+▪ Analyzed and reviewed High level design documents & API’s to support the migration and to estimate the risks 
+involved. 
+▪ Implemented Context API providers within the react application for state management between the react components.  
+▪ Worked on containerizing the applications in Docker and deploying through yml configuration to OpenShift.  
+▪ Performed Code reviews and oversee the unit tests prepared, and dev plan crea tion. 
+▪ Monitored application performance at the post-deployment stage and make necessary changes if needed.  
+▪ Coordinated with Business Analysts and Product Owners (PO) to ensure that the developed application components 
+meet technical requirements and client needs. 
+▪ Worked closely with the quality assurance team to ensure delivery of high quality and reliable web applications  
+▪ Analysis of the user requirements and Database design in Microsoft SQL Server 2019 
+▪ Responsible for developing, deploying, and managing the Micro services for the District Marketplace product. 
+▪ Good exposure in tracing the application logs through Kibana dashboards and tracking the health of the services.  
+Environment: ASP.NET Core, C#, Visual Studio 2022, Asp.Net Core Web API, React 17, TypeScript, Kibana and Elastic Search, 
+jQuery, JavaScript, SQL Server 2019, JSON, HTML 5, CSS, jQuery, NodeJs, Docker, OpenShift, LINQ, Jira. 
+ 
+GT – Convene: (Grant Thornton, India)                     Nov 2020 – Jul 2022 
+Role: Senior .NET developer 
+Grant Thornton is a USA based tax and advisory firm. GT Convene is a cloud-based document workflow solution that allows for 
+engagement teams to create client-specific request lists.  The solution enables documents to be shared through an interactive Page 4 of 6 
+ 
+workflow, allowing collaboration with a client directly in the application. It is completely a new application developed from 
+scratch for GT. 
+Responsibilities: 
+• Designed and developed scalable web applications using ASP.NET Core and C#, following best practices for modular and 
+maintainable architecture. 
+• Implemented Entity Framework as ORM with Repository Pattern and CQRS to ensure separation of concerns and 
+maintainable data access logic. 
+• Developed and deployed applications using Azure App Services, ensuring high availabilit y and scalability in the cloud 
+environment. 
+• Utilized Azure SQL Database for secure and reliable cloud-based relational data storage. 
+• Used Azure DevOps for source control, implemented CI/CD pipelines for deployment of applications to cloud 
+environment, and collaborative project tracking to streamline the development lifecycle. 
+• Integrated React with ASP.NET Core to user friendly and modern web UIs. 
+• Leveraged Azure Cloud Services such as Azure Key Vault, Azure Redis Cache to enhance application performance, 
+resilience, and scalability. 
+• Used Microsoft Visual Studio 2019 for full-cycle development, debugging, and deployment of cloud -based applications. 
+• Implemented Azure Redis Cache to store user rights and permissions, resulting in up to 70% reduction in database  hits 
+and significantly improving application response time by 30–40%, while enhancing overall system scalability and 
+performance under high user load. 
+• Provided production support by promptly addressing user-reported issues, offering on-call assistance, and ensuring 
+consistent delivery of high-quality services. 
+• Monitored application health daily and communicated status updates through health check reports to business 
+stakeholders. 
+Environment: Microsoft Visual Studio 2019, Azure DevOps Pipelines, Azure SQL database, Azure App Services, Azure Redis 
+Cache, Asp.Net Core, React, C#, Azure Cloud Services, Entity Framework DB first approach, Swagger API documentation. 
+ 
+ 
+Project: StoryBook: (Ernest & Young, India ).                                                 Ju n 20 19-Oct 2 020   
+Role:  Senior .NET developer  
+Storybook is an UK based project and EY dynamic delivery tool for understanding the journey users take through your products 
+and the types of people they are. Storybook allows you to take your detailed, complex user research data and create simplified 
+stories that help derive design insights. From those design insights you can move into design solutioning and development 
+implementations faster. 
+Responsibilities: 
+• Involved in analysis, design and development of Application and Web Services and Developed microservices-based 
+applications using Node.js (v8.17.0) with Express.js and React.js, deployed via Docker on Azure Kubernetes Service 
+(AKS). 
+• Utilized Sequelize ORM to interact with MariaDB and Azure Database for MyS QL, ensuring efficient and secure data 
+operations. 
+• Configured and managed Nginx as the reverse proxy and web server for serving Node.js applications in containerized 
+environments. 
+• Implemented and managed Azure DevOps pipelines for CI/CD automation, ensurin g rapid and reliable delivery of code 
+to production. 
+• Conducted code reviews and pull request (PR) reviews to maintain code quality, improve team productivity, and 
+enforce best practices. 
+• Leveraged GitHub and Azure DevOps Repos for source control and collab orative development. 
+• Built and deployed Azure Functions and Azure WebJobs for background task automation and event -driven processing. 
+• Integrated Azure Key Vault for secure secrets and configuration management across environments.  
+• Utilized Azure Blob Storage for handling and storing large, unstructured data such as logs and file uploads.  
+• Published and managed container images using Azure Container Registry to streamline the deployment pipeline.  
+• Collaborated across cross-functional teams to ensure scalable, cloud-native design and delivery of services within 
+Kubernetes environments 
+Environment:  C#, ASP.NET, ADO.NET, NodeJs, Sequelize ORM, Azure DB for MySQL, MariaDB , NodeJs, ExpressJs, JQuery, Azure 
+Kubernetes Service (AKS) and Azure Container Registry and Azure DevOps. 
+ 
+ Page 5 of 6 
+ 
+Project: Dentsu: (Dentsu Aegis Network, India )     Mar  201 8 to May  201 9 
+Role: Senior Dot Net Developer  
+     Dentsu Aegis Network Ltd. is a multinational media and digital marketing communications company headquartered 
+in London, United Kingdom, and a wholly owned subsidiary of the Japanese advertising and public relations firm Dentsu. Its 
+principal services are communications strategy through digital creative execution, media planning and buying, sports marketin g 
+and content creation, brand tracking and marketing analytics. 
+ Dentsu is a reporting platform designed to provide clients of Dentsu Aegis Network with actionable insights into the 
+performance of their digital marketing campaigns across targeted regions. The system ingests campaign dat a from multiple 
+digital marketing providers, including Google DoubleClick, Facebook, Twitter, and Nielsen, capturing key performance metrics 
+such as impressions, clicks, and conversions. Data from these sources is ingested into Microsoft Azure Blob Storage , where it is 
+then cleaned, processed, and transformed. Azure WebJobs and Azure Functions are scheduled and monitored to automate 
+these tasks. Processed data is further orchestrated and moved to a centralized Data Warehouse using Azure Data Factory, 
+enabling efficient reporting and analytics for clients. 
+ 
+Responsibilities: 
+• Participated in the analysis, design, and development of integrations between FTP folders and scheduled Azure Cloud 
+Jobs. 
+• Ensured timely and reliable data ingestion into Microsoft Azure Blob Storage for various clients of Dentsu Aegis 
+Network, supporting performance reporting needs. 
+• Integrated Azure Event Hubs to enable real-time streaming ingestion of campaign data from multiple digital marketing 
+platforms, improving data pipeline scalability and reducing latency before storage in Azure Blob Storage.  
+• Developed services in C# to automatically download email attachments based on specific subject lines  and from FTP 
+shared folders and store them in Azure Blob Storage for further processing.  
+• Designed, scheduled, and monitored Azure Web Jobs and Azure Functions for data transformation, cleaning, and 
+orchestration pipelines. 
+• Built and maintained modular retriever services in C# that connect with external data provider APIs (e.g., Google 
+DoubleClick, Facebook, Twitter, Nielsen) and store data in Azure Blob Storage.  
+• Deployed and monitored WebJobs within Microsoft Azure App Services, ensuring high availability and fault tolerance.  
+• Processed raw files and blobs from Azure Blob Storage using Azure Data Factory, facilitating ETL workflows into the 
+Data Warehouse. 
+• Created complex Business Stored Procedures, Views and User Defined Functions for Data Retrieval and Manipulations.  
+• Collaborated in Agile/Scrum sprints, delivering results based on the defined Spr int Backlog and participating in planning 
+and review sessions. 
+ 
+Environment:  C#, Azure Cloud, Azure Functions, Azure Blob Storage, Databricks, Azure Event Hubs, Azure Data Factory Services  
+(ADF), ADO.NET, FTP & SFTP, Visual Studio 2017, .NET 4.5, SQL Server 2012, Azure Storage Explorer. 
+ 
+CMS: (DFWAC, India)                  May 2015 to Feb 2018 
+Role: Sr. Dot Net Developer 
+ Dubai Foundation for Women and Children (DFWAC) is a government organization of Dubai offers services to the 
+abused Women and Children. DFWAC has 24*7 PPO to record the complaints to give solutions. Case Management System (CMS) 
+is a web-based application to record and tracks the Service details, Contracts, and clients follow up details done at DFWAC.  
+ 
+Responsibilities: 
+• Coordinated with clients to gather clarifications and change requests, ensuring alignment with evolving project 
+requirements. 
+• Maintained and tracked updates in the Change Log, facilitating accurate documentation and version control.  
+• Prepared Case Analysis Summary Reports to assess impact, feasibility, and implementation strategies for proposed 
+changes. 
+• Estimated effort and timelines for changes across various project phases, supporting sprint planning and resource 
+allocation. 
+• Performed backup and restore operations using Oracle dump files, ensuring data integrity and disaster recovery 
+preparedness. 
+• Designed and structured relational databases, optimizing for scalability, normalization, and performance.  
+• Conducted performance tuning of the website by applying coding and archite ctural best practices, improving speed and 
+responsiveness. Page 6 of 6 
+ 
+• Developed client-side validation logic using JavaScript and jQuery, improving Form reliability and enhancing overall user 
+experience. 
+ 
+Environment: ASP.NET, C#.net, ADO.Net, .Net Framework 4.0, MS Visual Studio 2012, Oracle 11g, MVC 3.0 , jQuery, JavaScript, 
+Team Foundation Server, Windows Server 2012 R2. 
+ 
+ 
+CIS: (IVDP, India)                                                Nov 2011 to Apr 2015 
+Dot Net Developer 
+ CIS is an accounting package (Micro Fin ance) designed to track and maintain financial information of Self -Help Groups 
+under a cluster. This desktop application helps the self -help groups to maintain their members and account details like savings, 
+loan details and so on in different Clusters (About 250 SHGs form a Cluster). 
+ 
+Responsibilities: 
+• Designed and developed core application modules including Transaction View, Meeting Entry, and Balance Sheet pages.  
+• Participated in client meetings for requirement gathering and use case preparation, followi ng Agile (SCRUM) 
+methodology throughout the development lifecycle. 
+• Managed application enhancements, production support, and bug fixes, ensuring system reliability and performance.  
+• Developed and maintained Windows Services to invoke and manage batch progra ms for background processing. 
+• Utilized LINQ to SQL for efficient data access between the business logic and data model layers.  
+• Created and customized DevExpress Reports, implementing features such as sorting, grouping, filtering, and report 
+element formatting. 
+• Developed configuration files to enable dynamic and environment-specific settings. 
+• Deployed applications to client machines within a Local Area Network (LAN) environment.  
+• Oversaw the integration cycle and handled deployment on testing servers for vali dation and QA. 
+• Design and development of SQL Server Database, Writing T-SQL (stored procedures, functions, data types, queries, 
+Indexes, triggers, views, functions, Performance Tuning, Cursors, Query Optimization, CTE, User-Defined Types) etc. 
+• Used Visual SourceSafe for version control and codebase management throughout development and maintenance.  
+• Consumed external Web Services to integrate third-party functionalities and services into the application. 
+• Performed unit testing using XUnit, ensuring code quality and stability prior to release. 
+Environment: 
+C#.NET, Asp.NET Rest API services,  Windows Forms, ADO.Net, .Net Framework 2.0, .Net Framework 3.5, MS Visual Studio 
+2005/2008, XML, SQL Server 2005/2008, Visual Source Safe. 

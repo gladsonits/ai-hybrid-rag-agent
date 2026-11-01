@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS faq_questions (
     question_key TEXT NOT NULL,
     cache_key    TEXT NOT NULL,
     generation   BIGINT NOT NULL DEFAULT 0,
+    search_vector tsvector,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -59,6 +60,8 @@ FAQ_INDEX_DDL = (
     "ON faq_questions (question_key);",
     "CREATE INDEX IF NOT EXISTS faq_questions_updated_idx "
     "ON faq_questions (updated_at DESC);",
+    "CREATE INDEX IF NOT EXISTS faq_questions_search_idx "
+    "ON faq_questions USING GIN (search_vector);",
 )
 
 #: How many candidates the search looks at.  Only the nearest one can
@@ -103,6 +106,7 @@ class PostgresFaqMatcher:
 
     def ensure_schema(self) -> None:
         """Create the table, the vector column and the indexes."""
+        from retrieval.database import FTS_CONFIG
         with self.db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(FAQ_TABLE_DDL)
@@ -122,6 +126,12 @@ class PostgresFaqMatcher:
                     CREATE INDEX IF NOT EXISTS faq_questions_embedding_hnsw_idx
                     ON faq_questions USING hnsw (embedding vector_cosine_ops)
                     """
+                )
+                # Ensure search_vector is populated for existing rows
+                cur.execute(
+                    "UPDATE faq_questions SET search_vector = to_tsvector(%s, question) "
+                    "WHERE search_vector IS NULL",
+                    (FTS_CONFIG,)
                 )
 
     # -- writing -----------------------------------------------------------
@@ -144,23 +154,25 @@ class PostgresFaqMatcher:
         a match for a question asked against this one, so it is kept
         apart.
         """
+        from retrieval.database import FTS_CONFIG
         embedding = self.embedder.embed_one(question)
         with self.db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO faq_questions (
-                        question, question_key, cache_key, generation, embedding
+                        question, question_key, cache_key, generation, embedding, search_vector
                     )
                     VALUES (
                         %(question)s, %(question_key)s, %(cache_key)s,
-                        %(generation)s, %(embedding)s::vector
+                        %(generation)s, %(embedding)s::vector, to_tsvector(%(config)s, %(question)s)
                     )
                     ON CONFLICT (question_key) DO UPDATE SET
                         question   = EXCLUDED.question,
                         cache_key  = EXCLUDED.cache_key,
                         generation = EXCLUDED.generation,
                         embedding  = EXCLUDED.embedding,
+                        search_vector = EXCLUDED.search_vector,
                         updated_at = now()
                     """,
                     {
@@ -169,6 +181,7 @@ class PostgresFaqMatcher:
                         "cache_key": cache_key,
                         "generation": int(generation),
                         "embedding": as_vector_literal(embedding),
+                        "config": FTS_CONFIG,
                     },
                 )
 
@@ -186,19 +199,45 @@ class PostgresFaqMatcher:
     ) -> FaqCandidate | None:
         """The stored question this one means the same as, if there is one.
 
-        The nearest question is only returned when it is at least
-        ``threshold`` close.  Below that the two questions are merely
-        about the same thing, and answering one with the other would be
-        a guess.
-
-        Only the questions of the given version of the corpus are
-        looked at.  A question that was asked against an older corpus
-        has an answer that is no longer right, so it is not a match.
-
-        The search filters on the version of the corpus, and a filter is
-        applied after the approximate scan - so the session is put into the
-        mode that keeps going until there are enough rows that match.
+        The search is a hybrid of keyword (BM25-like) and semantic (vector) match.
+        The keyword match is checked first; if it yields a high-ranking result,
+        it is returned. Otherwise, the vector search is performed.
         """
+        from retrieval.database import FTS_CONFIG
+
+        # 1. Keyword Match (BM25-like)
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT question, question_key, cache_key,
+                           ts_rank_cd(search_vector, websearch_to_tsquery(%(config)s, %(query)s)) AS rank
+                    FROM faq_questions
+                    WHERE search_vector @@ websearch_to_tsquery(%(config)s, %(query)s)
+                      AND generation = %(generation)s
+                    ORDER BY rank DESC
+                    LIMIT 1
+                    """,
+                    {
+                        "query": question,
+                        "config": FTS_CONFIG,
+                        "generation": int(generation),
+                    },
+                )
+                keyword_row = cur.fetchone()
+
+        if keyword_row:
+            # For keyword match, we use a high rank as a signal of a strong match.
+            # In a real system, this threshold would be tuned.
+            if float(keyword_row["rank"] or 0.0) > 0.1:
+                return FaqCandidate(
+                    question=keyword_row["question"],
+                    question_key=keyword_row["question_key"],
+                    cache_key=keyword_row["cache_key"],
+                    similarity=1.0, # Mark as a strong match
+                )
+
+        # 2. Semantic Match (Original Vector Search)
         embedding = self.embedder.embed_one(question)
         with self.db.connection() as conn:
             with conn.cursor() as cur:

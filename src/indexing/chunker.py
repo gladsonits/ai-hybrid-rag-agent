@@ -58,7 +58,7 @@ load_dotenv()
 MAX_CHUNK_CHARS = 1200
 
 #: Chunks shorter than this are dropped as noise (stray headers, page numbers).
-MIN_USEFUL_CHARS = 25
+MIN_USEFUL_CHARS = 10
 
 #: Overlap between adjacent chunks when a block has to be split by size.
 SPLIT_OVERLAP_CHARS = 100
@@ -104,6 +104,9 @@ _BULLET_RE = re.compile(
 #: "Word:" pattern would also match contact details such as
 #: "Email: gladson.bits@gmail.com".
 _LABEL_RE = re.compile(r"^(?P<label>[A-Z][A-Za-z /&]{0,30}):(?P<value>.*)$")
+
+#: Pattern to detect phone numbers (e.g., +1 (732) 372-3475 or 732-372-3475).
+_PHONE_RE = re.compile(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
 
 #: Labels that scope the blocks beneath them.
 _SCOPING_LABELS = frozenset(
@@ -472,7 +475,7 @@ class PDFChunker:
             return "role"
         if _BULLET_RE.match(line):
             return "bullet"
-        if self._is_label(line):
+        if _LABEL_RE.match(line) or _PHONE_RE.search(line):
             return "label"
         return "para"
 
@@ -525,6 +528,23 @@ class PDFChunker:
 
             if block.kind == "project":
                 context = _parse_project_header(block.text)
+                # Create a chunk for the project header itself so it's searchable
+                for piece in self._split_by_size(block.text):
+                    if len(piece) < self.min_useful_chars:
+                        continue
+                    metadata: dict[str, Any] = {
+                        "section": section_title,
+                        "source": self.pdf_path.name,
+                        "page": block.page,
+                        "end_page": block.end_page,
+                        "section_index": section_index,
+                        "chunk_index": chunk_index,
+                        "section_chunk_index": section_chunk_index,
+                    }
+                    metadata.update(self._extra_metadata(section_title, block, context))
+                    chunks.append(Chunk(chunk_text=piece, metadata=metadata))
+                    chunk_index += 1
+                    section_chunk_index += 1
                 continue
 
             if block.kind == "role":
@@ -535,6 +555,24 @@ class PDFChunker:
                 else:
                     context = dict(context)
                     context["role"] = block.text.strip()
+
+                # Create a chunk for the role header itself so it's searchable
+                for piece in self._split_by_size(block.text):
+                    if len(piece) < self.min_useful_chars:
+                        continue
+                    metadata: dict[str, Any] = {
+                        "section": section_title,
+                        "source": self.pdf_path.name,
+                        "page": block.page,
+                        "end_page": block.end_page,
+                        "section_index": section_index,
+                        "chunk_index": chunk_index,
+                        "section_chunk_index": section_chunk_index,
+                    }
+                    metadata.update(self._extra_metadata(section_title, block, context))
+                    chunks.append(Chunk(chunk_text=piece, metadata=metadata))
+                    chunk_index += 1
+                    section_chunk_index += 1
                 continue
 
             if not block.text.strip():
@@ -576,6 +614,10 @@ class PDFChunker:
 
         if block.label:
             extra["label"] = block.label
+            # Boost contact labels for better retrieval
+            label_lower = block.label.lower()
+            if label_lower in ("phone", "email", "linkedin", "mobile", "tel", "ph"):
+                extra["is_contact"] = True
 
         rules = self.section_rules.get(section_title.upper(), {})
         if rules:

@@ -66,6 +66,7 @@ logger = logging.getLogger(__name__)
 
 #: The ways the memory can answer a question.
 MATCH_EXACT = "exact"
+MATCH_KEYWORD = "keyword"
 MATCH_SEMANTIC = "semantic"
 
 
@@ -171,9 +172,13 @@ class ChatService:
                 yield event
             return
 
-        # The memory, asked with the meaning of the question.
+        # The memory, asked with the meaning or keywords of the question.
         candidate = await self._semantic_candidate(question, query, generation)
         if candidate is not None:
+            # Determine if the match was semantic or keyword based on the similarity score.
+            # In our updated FaqMatcher, a similarity of 1.0 indicates a keyword match.
+            match_type = MATCH_KEYWORD if candidate.similarity >= 1.0 else MATCH_SEMANTIC
+
             semantic = await self.answer_cache.get(candidate.cache_key)
             if semantic is not None:
                 await self._record(
@@ -181,7 +186,7 @@ class ChatService:
                 )
                 await self._refresh(candidate.cache_key, candidate.question_key)
                 async for event in self._replay_cached(
-                    conversation_id, semantic, MATCH_SEMANTIC
+                    conversation_id, semantic, match_type
                 ):
                     yield event
                 return
