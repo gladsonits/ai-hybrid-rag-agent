@@ -1,0 +1,126 @@
+event: sources
+data: {"type": "sources", "sources": [{"chunk_id": 1809, "text": "Rose Gladson AG", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "HEADER", "end_page": 1, "chunk_index": 0, "section_index": 0, "section_chunk_index": 0}, "score": 0.01639344262295082}, {"chunk_id": 1811, "text": "Email: gladson.bits@gmail.com LinkedIn: rose-gladson-ag", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "HEADER", "end_page": 1, "chunk_index": 2, "section_index": 0, "section_chunk_index": 2}, "score": 0.016129032258064516}, {"chunk_id": 1851, "text": "Project: TruStage, USA Jul 2025- Till Date", "metadata": {"page": 2, "client": "USA", "period": "Jul 2025- Till Date", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "TruStage", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 42, "section_index": 5, "section_chunk_index": 0}, "score": 0.015873015873015872}, {"chunk_id": 1944, "text": "Project: Dentsu: (Dentsu Aegis Network, India ) Mar 201 8 to May 201 9", "metadata": {"page": 5, "client": "Dentsu Aegis Network, India", "period": "Mar  201 8 to May  201 9", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "Dentsu", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 135, "section_index": 5, "section_chunk_index": 93}, "score": 0.015625}, {"chunk_id": 1869, "text": "Project: BMW, USA/India FEB 2024- May 2025", "metadata": {"page": 2, "client": "USA/India", "period": "FEB 2024- May 2025", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "BMW", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 60, "section_index": 5, "section_chunk_index": 18}, "score": 0.015384615384615385}, {"chunk_id": 1927, "text": "Project: StoryBook: (Ernest & Young, India ). Ju n 20 19-Oct 2 020", "metadata": {"page": 4, "client": "Ernest & Young, India", "period": "Ju n 20 19-Oct 2 020", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "StoryBook", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 118, "section_index": 5, "section_chunk_index": 76}, "score": 0.015151515151515152}, {"chunk_id": 1836, "text": "Project Management Tool: JIRA, Azure DevOps", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "TECHNICAL SKILLS", "end_page": 1, "chunk_index": 27, "section_index": 2, "section_chunk_index": 4}, "score": 0.014925373134328358}, {"chunk_id": 1896, "text": "Worked on business requirements, change requests, product features implementation, bug fixes, product deployments into OpenShift Containers with tech stack such as Asp.Net Core Web Apis, React and NodeJs.", "metadata": {"page": 3, "role": "Senior .NET Consultant", "label": "Responsibilities", "client": "Danske Bank, India", "period": "Aug 2022 to Jan 2024", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "District Marketplace", "section": "PROFESSIONAL EXPERIENCE", "end_page": 3, "chunk_index": 87, "section_index": 5, "section_chunk_index": 45}, "score": 0.014705882352941176}, {"chunk_id": 1815, "text": "Worked on Automobile, Digital Marketing, Health Care, Tax and Advisory, Finance and Banking domain-based projects.", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "SUMMARY", "end_page": 1, "chunk_index": 6, "section_index": 1, "section_chunk_index": 3}, "score": 0.014492753623188406}, {"chunk_id": 1820, "text": "Have hands on project experience followed on SOLID principles and Lazy Loading, Repository and CQRS design patterns.", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "SUMMARY", "end_page": 1, "chunk_index": 11, "section_index": 1, "section_chunk_index": 8}, "score": 0.014285714285714285}, {"chunk_id": 1819, "text": "Extensive front end and backend development experience working with .NET 8 and .Net Framework 4.0/4.6/4.8, Visual Studio 2013/2015/2017/2019/2022 and JQuery, Bootstrap, JavaScript and React 17/18 and Redux and Context API for state.", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "SUMMARY", "end_page": 1, "chunk_index": 10, "section_index": 1, "section_chunk_index": 7}, "score": 0.014084507042253521}, {"chunk_id": 1812, "text": "Highly skilled and result-oriented Lead Software Engineer with 14+ years of experience in Requirement Analysis, Architecture, Development, DevOps, and Production Support, specializing in AI -driven solutions and cloud-native application development.", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "SUMMARY", "end_page": 1, "chunk_index": 3, "section_index": 1, "section_chunk_index": 0}, "score": 0.013888888888888888}, {"chunk_id": 1881, "text": "Involved in Efforts and Estimation of the user stories, user requirements, designing, and developing web applications.", "metadata": {"page": 3, "role": "Senior .NET Consultant", "label": "Responsibilities", "client": "USA/India", "period": "FEB 2024- May 2025", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "BMW", "section": "PROFESSIONAL EXPERIENCE", "end_page": 3, "chunk_index": 72, "section_index": 5, "section_chunk_index": 30}, "score": 0.0136986301369863}, {"chunk_id": 1898, "text": "Analyzed and reviewed High level design documents & API\u2019s to support the migration and to estimate the risks involved.", "metadata": {"page": 3, "role": "Senior .NET Consultant", "label": "Responsibilities", "client": "Danske Bank, India", "period": "Aug 2022 to Jan 2024", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "District Marketplace", "section": "PROFESSIONAL EXPERIENCE", "end_page": 3, "chunk_index": 89, "section_index": 5, "section_chunk_index": 47}, "score": 0.013513513513513514}, {"chunk_id": 1888, "text": "Worked closely with BMW IT and business users in continuous running of software applications and services and collaborated with other architects and developers to deliver the highest quality solutions.", "metadata": {"page": 3, "role": "Senior .NET Consultant", "label": "Responsibilities", "client": "USA/India", "period": "FEB 2024- May 2025", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "BMW", "section": "PROFESSIONAL EXPERIENCE", "end_page": 3, "chunk_index": 79, "section_index": 5, "section_chunk_index": 37}, "score": 0.013333333333333334}, {"chunk_id": 1894, "text": "It is the complete migration of the services from Node Js to .NET core and implementa tion of new features for District Market Place.", "metadata": {"page": 3, "role": "Senior .NET Consultant", "client": "Danske Bank, India", "period": "Aug 2022 to Jan 2024", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "District Marketplace", "section": "PROFESSIONAL EXPERIENCE", "end_page": 3, "chunk_index": 85, "section_index": 5, "section_chunk_index": 43}, "score": 0.013157894736842105}, {"chunk_id": 1965, "text": "Coordinated with clients to gather clarifications and change requests, ensuring alignment with evolving project requirements.", "metadata": {"page": 5, "role": "Sr. Dot Net Developer", "label": "Responsibilities", "client": "DFWAC, India", "period": "May 2015 to Feb 2018", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "CMS", "section": "PROFESSIONAL EXPERIENCE", "end_page": 5, "chunk_index": 156, "section_index": 5, "section_chunk_index": 114}, "score": 0.012987012987012988}, {"chunk_id": 1975, "text": "CIS: (IVDP, India) Nov 2011 to Apr 2015", "metadata": {"page": 6, "client": "IVDP, India", "period": "Nov 2011 to Apr 2015", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "CIS", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 166, "section_index": 5, "section_chunk_index": 124}, "score": 0.01282051282051282}, {"chunk_id": 1936, "text": "Leveraged GitHub and Azure DevOps Repos for source control and collab orative development.", "metadata": {"page": 4, "role": "Senior .NET developer", "label": "Responsibilities", "client": "Ernest & Young, India", "period": "Ju n 20 19-Oct 2 020", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "StoryBook", "section": "PROFESSIONAL EXPERIENCE", "end_page": 4, "chunk_index": 127, "section_index": 5, "section_chunk_index": 85}, "score": 0.012658227848101266}, {"chunk_id": 1831, "text": "Experience as a Team Lead leading a team of 8 developers in achieving the quality and standard of deliverables.", "metadata": {"page": 1, "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "section": "SUMMARY", "end_page": 1, "chunk_index": 22, "section_index": 1, "section_chunk_index": 19}, "score": 0.0125}], "cache_hit": false}
+
+event: token
+data: {"type": "token", "token": "Rose"}
+
+event: token
+data: {"type": "token", "token": "\u2019s"}
+
+event: token
+data: {"type": "token", "token": " current"}
+
+event: token
+data: {"type": "token", "token": " project"}
+
+event: token
+data: {"type": "token", "token": " is"}
+
+event: token
+data: {"type": "token", "token": " **"}
+
+event: token
+data: {"type": "token", "token": "Tr"}
+
+event: token
+data: {"type": "token", "token": "u"}
+
+event: token
+data: {"type": "token", "token": "Stage"}
+
+event: token
+data: {"type": "token", "token": "**"}
+
+event: token
+data: {"type": "token", "token": " in"}
+
+event: token
+data: {"type": "token", "token": " the"}
+
+event: token
+data: {"type": "token", "token": " United"}
+
+event: token
+data: {"type": "token", "token": " States"}
+
+event: token
+data: {"type": "token", "token": ","}
+
+event: token
+data: {"type": "token", "token": " which"}
+
+event: token
+data: {"type": "token", "token": " she"}
+
+event: token
+data: {"type": "token", "token": " started"}
+
+event: token
+data: {"type": "token", "token": " in"}
+
+event: token
+data: {"type": "token", "token": " July"}
+
+event: token
+data: {"type": "token", "token": "\u202f"}
+
+event: token
+data: {"type": "token", "token": "202"}
+
+event: token
+data: {"type": "token", "token": "5"}
+
+event: token
+data: {"type": "token", "token": " and"}
+
+event: token
+data: {"type": "token", "token": " is"}
+
+event: token
+data: {"type": "token", "token": " listed"}
+
+event: token
+data: {"type": "token", "token": " as"}
+
+event: token
+data: {"type": "token", "token": " \u201c"}
+
+event: token
+data: {"type": "token", "token": "Till"}
+
+event: token
+data: {"type": "token", "token": " Date"}
+
+event: token
+data: {"type": "token", "token": ",\u201d"}
+
+event: token
+data: {"type": "token", "token": " indicating"}
+
+event: token
+data: {"type": "token", "token": " it"}
+
+event: token
+data: {"type": "token", "token": " is"}
+
+event: token
+data: {"type": "token", "token": " ongoing"}
+
+event: token
+data: {"type": "token", "token": "\u3010"}
+
+event: token
+data: {"type": "token", "token": "3"}
+
+event: token
+data: {"type": "token", "token": "\u3011"}
+
+event: token
+data: {"type": "token", "token": "."}
+
+event: citations
+data: {"type": "citations", "citations": [{"marker": 3, "chunk_id": 1851, "text": "Project: TruStage, USA Jul 2025- Till Date", "metadata": {"page": 2, "client": "USA", "period": "Jul 2025- Till Date", "source": "Rose Gladson AG_.NETAzureOpsFullStack.pdf", "project": "TruStage", "section": "PROFESSIONAL EXPERIENCE", "end_page": 1, "chunk_index": 42, "section_index": 5, "section_chunk_index": 0}, "score": 0.015873015873015872}], "cache_hit": false}
+
+event: done
+data: {"type": "done", "token": "Rose\u2019s current project is **TruStage** in the United States, which she started in July\u202f2025 and is listed as \u201cTill Date,\u201d indicating it is ongoing\u30103\u3011.", "conversation_id": "test_1"}
+

@@ -110,6 +110,10 @@ class PostgresFaqMatcher:
         with self.db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(FAQ_TABLE_DDL)
+
+                # Ensure the search_vector column exists before creating the index
+                cur.execute("ALTER TABLE faq_questions ADD COLUMN IF NOT EXISTS search_vector tsvector")
+
                 for statement in FAQ_INDEX_DDL:
                     cur.execute(statement)
                 dimension = int(self.embedder.dimension)

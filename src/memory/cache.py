@@ -247,28 +247,25 @@ def build_question_key(question: str) -> str:
 
 def build_cache_key(
     question: str,
-    context: str = "",
+    context: str | None = None,
     generation: int = 0,
 ) -> str:
     """The key an answer is stored under.
 
     The question is normalized, so a difference in case or in spacing
-    does not make a new key.  The context is mixed in as well: the same
+    does not make a new key.  If context is provided, it is mixed in: the same
     question asked in a different conversation is a different question,
     and the answer to it would be different too.
-
-    The **generation** is the version of the corpus the answer was built
-    from, and it is part of the key.  That is what makes a rebuild of
-    the corpus invalidate the memory: an answer from the corpus as it
-    was is simply never asked for again, because the key it is stored
-    under is not the key the question produces any more.  The memory
-    misses, the question is answered afresh, and the old answer expires
-    on its own time to live.
     """
     digest = hashlib.sha256()
     digest.update(normalize_question(question).encode("utf-8"))
-    digest.update(b"|")
-    digest.update(context.strip().encode("utf-8"))
+    
+    if context is not None:
+        digest.update(b"|")
+        digest.update(context.strip().encode("utf-8"))
+    else:
+        digest.update(b"|")
+        
     digest.update(b"|")
     digest.update(str(int(generation)).encode("utf-8"))
     return f"{CACHE_NAMESPACE}:{digest.hexdigest()}"

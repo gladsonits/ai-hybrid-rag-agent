@@ -316,10 +316,13 @@ class ChatService:
     ) -> None:
         """Keep the answer in the memory, and record what the question cost.
 
-        The time to live is the one the question deserves: an hour for a
-        question asked once, longer once it counts as frequently asked.
+        We store the answer twice: once as a contextual answer (with history)
+        and once as a standalone answer (without history). This ensures that
+        FAQ matches can always retrieve an answer.
         """
         ttl = await self.faq_metrics.ttl_for(question_key)
+
+        # 1. Store contextual answer
         await self.answer_cache.set(
             cache_key,
             CachedAnswer(
@@ -329,8 +332,21 @@ class ChatService:
             ),
             ttl_seconds=ttl,
         )
+
+        # 2. Store standalone answer
+        standalone_key = build_cache_key(question, context=None, generation=generation)
+        await self.answer_cache.set(
+            standalone_key,
+            CachedAnswer(
+                answer=answer,
+                sources=sources,
+                citations=citation_records(citations),
+            ),
+            ttl_seconds=ttl,
+        )
+
         await self._record(question, question_key, cost_ms=cost_ms)
-        await self._remember(question, question_key, cache_key, query, generation)
+        await self._remember(question, question_key, standalone_key, query, generation)
 
     async def _remember(
         self,

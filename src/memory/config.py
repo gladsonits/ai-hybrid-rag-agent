@@ -47,7 +47,7 @@ DEFAULT_FAQ_TTL_SECONDS = 86400
 #: The cosine similarity two questions have to reach before they are
 #: treated as the same question.  High on purpose: a wrong answer to a
 #: question that only looks similar is worse than a slow answer.
-DEFAULT_SIMILARITY_THRESHOLD = 0.90
+DEFAULT_SIMILARITY_THRESHOLD = 0.85
 
 #: How many times a question has to be asked before it counts as
 #: frequently asked.
