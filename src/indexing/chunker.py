@@ -542,7 +542,8 @@ class PDFChunker:
                         "section_chunk_index": section_chunk_index,
                     }
                     metadata.update(self._extra_metadata(section_title, block, context))
-                    chunks.append(Chunk(chunk_text=piece, metadata=metadata))
+                    full_text = f"{section_title}: {piece}" if section_title != "HEADER" else piece
+                    chunks.append(Chunk(chunk_text=full_text, metadata=metadata))
                     chunk_index += 1
                     section_chunk_index += 1
                 continue
@@ -570,7 +571,8 @@ class PDFChunker:
                         "section_chunk_index": section_chunk_index,
                     }
                     metadata.update(self._extra_metadata(section_title, block, context))
-                    chunks.append(Chunk(chunk_text=piece, metadata=metadata))
+                    full_text = f"{section_title}: {piece}" if section_title != "HEADER" else piece
+                    chunks.append(Chunk(chunk_text=full_text, metadata=metadata))
                     chunk_index += 1
                     section_chunk_index += 1
                 continue
@@ -591,7 +593,8 @@ class PDFChunker:
                     "section_chunk_index": section_chunk_index,
                 }
                 metadata.update(self._extra_metadata(section_title, block, context))
-                chunks.append(Chunk(chunk_text=piece, metadata=metadata))
+                full_text = f"{section_title}: {piece}" if section_title != "HEADER" else piece
+                chunks.append(Chunk(chunk_text=full_text, metadata=metadata))
                 chunk_index += 1
                 section_chunk_index += 1
 
